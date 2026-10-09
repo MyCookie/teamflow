@@ -218,6 +218,11 @@ class LocalFlow(unittest.TestCase):
         self.ok("pr", "checkout", "1", cwd=self.rev)
         self.assertEqual((self.rev / ".env").read_text(), "TOKEN=x\n")
 
+    def test_unknown_forge_is_a_setup_problem(self):
+        (self.main / ".claude").mkdir()
+        (self.main / ".claude" / "teamflow.json").write_text(json.dumps({"forge": "GitHub"}))
+        self.assertIn("'forge' must be one of", self.refused("mode", code=2))
+
     def test_bad_config_is_a_setup_problem(self):
         (self.main / ".claude").mkdir()
         (self.main / ".claude" / "teamflow.json").write_text("{not json")
@@ -350,6 +355,25 @@ class GitHubFlow(unittest.TestCase):
         self.assertFalse(merge["auto"])
         self.assertEqual(merge["subject"], "Merge feat/1-v2: feat: v2")
         self.assertEqual(self.gh_state()["prs"]["2"]["state"], "MERGED")
+
+    def test_merge_refuses_a_rejected_or_merely_claimed_head(self):
+        head = self.open_pr()
+        self.set_checks(head, "pass")
+        self.ok("pr", "claim", "2")  # pending status only
+        self.assertIn("no APPROVE", self.code(3, "pr", "merge", "2", cwd=self.rev))
+        self.ok("pr", "review", "2", "--verdict", "REQUEST_CHANGES", "--sha", head, "--body", "no", cwd=self.rev)
+        self.assertIn("no APPROVE", self.code(3, "pr", "merge", "2", cwd=self.rev))
+        self.assertEqual(self.gh_state()["merges"], [])
+
+    def test_merge_refuses_a_pr_that_does_not_target_the_base(self):
+        head = self.open_pr()
+        state = self.gh_state()
+        state["prs"]["2"]["base"] = "feat/0-dep"
+        self.state.write_text(json.dumps(state))
+        self.set_checks(head, "pass")
+        self.ok("pr", "review", "2", "--verdict", "APPROVE", "--sha", head, "--body", "ok", cwd=self.rev)
+        self.assertIn("not main", self.code(3, "pr", "merge", "2", cwd=self.rev))
+        self.assertEqual(self.gh_state()["merges"], [])
 
     def test_enforced_repository_uses_auto_merge(self):
         head = self.open_pr()

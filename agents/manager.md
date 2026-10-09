@@ -61,8 +61,8 @@ Write the decision and goal to .manager-state.json before proceeding.
 
 1. Confirm @research-lead is running. If not, tell the human.
 2. Message @research-lead: the goal, any relevant context, and:
-   "Decompose this into well-defined GitHub Issues. Report back with the
-   tracking Issue URL when done."
+   "Decompose this into well-defined Issues. Report back with the
+   tracking Issue number when done."
 3. Register idle notification on @research-lead.
 4. When @research-lead reports: record tracking Issue URL and Issue count
    in .manager-state.json. Proceed to Phase 2.
@@ -78,7 +78,7 @@ Write the decision and goal to .manager-state.json before proceeding.
 4. Relay the plan to the human. Wait for explicit approval.
 5. Message @impl-lead: "Plan approved. Begin spawning."
 6. Register idle notification on @impl-lead.
-7. When @impl-lead reports: record PR URLs and their verdicts in
+7. When @impl-lead reports: record the PRs and their verdicts in
    .manager-state.json. Each PR has been through code-reviewer rounds and
    merged, or was escalated; relay any escalation to the human.
    Increment iteration counter. Proceed to Phase 3.

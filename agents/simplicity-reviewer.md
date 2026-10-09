@@ -27,8 +27,7 @@ need. You do not fix anything.
    comments already left in the codebase by prior contributors.
 
 ## For every finding
-File a GitHub Issue with `gh issue create --title "..." --body "..." \
-  --label "severity:<level>,area:simplicity"`
+`tf issue create --title "..." --body "..." --label severity:<level> --label area:simplicity`
 
 Severity for simplicity findings is based on how much complexity removal
 would improve the codebase — not on risk:

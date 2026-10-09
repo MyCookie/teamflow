@@ -14,6 +14,9 @@ import subprocess
 import sys
 
 DEFAULTS = {
+    "forge": "local",
+    "remote": "origin",
+    "base": "main",
     "loop": {
         "max_iterations": 3,
         "exit_severity_threshold": "medium",
@@ -23,6 +26,7 @@ DEFAULTS = {
 }
 
 ALLOWED = {
+    "forge": {"local", "github"},
     "loop.exit_severity_threshold": {"high", "medium", "low", "none"},
     "loop.human_checkpoint": {"every_cycle", "first_loop_only", "never"},
 }

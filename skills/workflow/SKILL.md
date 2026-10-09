@@ -85,13 +85,34 @@ author's say-so.**
   cannot be resolved, a critical security problem is found, or a loop
   iteration produces more high-severity Issues than it resolves.
 
+## Issues and PRs: `tf`
+Every agent reaches Issues and PRs through `tf` (on PATH from the plugin),
+never `gh` directly. The repository's `.claude/teamflow.json` sets `forge`;
+`tf mode` prints it.
+
+| | `local` (default) | `github` (adopted) |
+|---|---|---|
+| Issues and PRs | Records in the git common dir, shared by all worktrees, never committed | GitHub Issues and PRs |
+| One reviewer per PR | `tf pr claim`: a lock | `tf pr claim`: a pending `teamflow/code-review` status on the head |
+| Gate at review | The reviewer runs `scripts/gate.sh` (`tf pr gate`) | CI's required checks on the head (`tf pr gate`); no second local run |
+| Verdict | Recorded against the reviewed head SHA | A PR comment plus a `teamflow/code-review` status on that SHA |
+| Merge | `tf pr merge` merges into the base branch; nothing is pushed | `tf pr merge` enables auto-merge; GitHub merges once required checks pass |
+| Stacked PR after its dependency merges | `tf` retargets it to the base branch | GitHub retargets it |
+
+A repository that adopted `github` but lacks `gh`, its login, or a GitHub
+remote makes every `tf` command stop with exit 2. Never fall back to local
+or to raw `git`/`gh` to get around it: report it.
+
+Exit codes: 0 ok, 1 error, 2 setup or usage problem, 3 refused because of PR state
+(claimed, moved head, no approval). Exit 3 is a STOP, not a retry signal.
+
 ## Issues
 Labels: `severity:high|medium|low`, `needs-discussion`,
 `area:architecture|security|quality|docs|simplicity|research`,
-`type:feature|bug|task`; `review:in-progress` (set by the lead that spawns a
-code-reviewer), `review:approved`, `review:changes-requested` (set by the
-code-reviewer). Research Issues use `type:task`; review findings use their
-`area:` label.
+`type:feature|bug|task`. Research Issues use `type:task`; review findings
+use their `area:` label. File with
+`tf issue create --title "..." --body "..." --label <l> [--label <l>]`.
+Pass bodies inline with `--body`; no scratch file is needed.
 
 Every Issue carries:
 - **Severity**: high / medium / low / needs-discussion, grounded in a
@@ -103,7 +124,7 @@ Every Issue carries:
 In diff-review mode a finding is **new** if no prior cycle filed it, or a
 prior Issue was closed without fixing the root cause. A finding is a
 **duplicate** if an open Issue has the same file:line and defect type:
-comment on that Issue instead. The manager counts net new Issues.
+`tf issue comment` on that Issue instead. The manager counts net new Issues.
 
 ## Research output
 Per finding: **Finding**, **Confidence** (high/medium/low), **Source**
@@ -123,43 +144,48 @@ Per finding: **Finding**, **Confidence** (high/medium/low), **Source**
 
 ## The gate
 The project's `./scripts/gate.sh` is the one definition of green. The
-implementer runs it before opening a PR; the code-reviewer runs it again
-before merging. Red and unfixable within your owned files: push the branch,
-do not open a PR, report the failing checks. A project without
-`scripts/gate.sh` has not been set up for teamflow: stop and report.
+implementer runs it before opening a PR. At review, `tf pr gate` checks it
+again: by running it locally, or on GitHub by requiring CI's checks for the
+exact head. Red and unfixable within your owned files: commit, do not open a
+PR, report the failing checks. A project without `scripts/gate.sh` has not
+been set up for teamflow: stop and report.
 
 ## Opening a PR
 ```bash
 cp .github/pull_request_template.md /tmp/pr-body-<issue>.md   # then fill it in
-open-pr "<type>(<scope>): <description>" /tmp/pr-body-<issue>.md [base]
+tf pr create --title "<type>(<scope>): <description>" --body-file /tmp/pr-body-<issue>.md [--base <branch>]
 ```
-`open-pr` (on PATH from the plugin) refuses a dirty tree, `main`, a detached
-HEAD, or an unedited template. The body carries `Closes #<n>` for each
-resolved Issue. It is a hint for the reviewer, never evidence.
+`tf pr create` refuses a dirty tree, the base branch, a detached HEAD, or an
+unedited template, and pushes the branch first on GitHub. The body carries
+`Closes #<n>` for each resolved Issue. It is a hint for the reviewer, never
+evidence.
 
 ## Review and merge
-- **Per PR:** a fresh `teamflow:code-reviewer` re-runs the gate, reviews
-  against the Issue and these rules, posts its verdict on the PR, and merges
-  on `APPROVE`. It is the only actor that merges.
+- **Per PR:** a fresh `teamflow:code-reviewer` checks the gate, reviews
+  against the Issue and these rules, records its verdict for the exact head
+  it reviewed, and merges on `APPROVE` with `tf pr merge`. It is the only
+  actor that merges.
 - **Who spawns it:** `impl-lead` for its team's PRs, owning the rounds;
   `review-lead` only in merge-review mode.
-- **One reviewer per PR.** The spawning lead claims it first: if
-  `gh pr view <N> --json labels` shows `review:in-progress`, do not spawn;
-  otherwise add it. Remove it when the verdict lands or the reviewer dies.
+- **One reviewer per PR.** The spawning lead runs `tf pr claim <N>` first
+  and does not spawn if it refuses; `tf pr release <N>` when the verdict
+  lands or the reviewer dies.
 - **Fresh each round,** prompted with only the PR number, branch and Issue.
   Naming risks or suggesting what to check undermines independence.
+- **A verdict is for one commit.** A push after an approval needs a new
+  review; `tf` refuses to merge a head nobody approved.
 - **Stacked PRs** are reviewed in dependency order: spawn a stacked PR's
-  reviewer only once its base is `main`. The reviewer refuses to merge into
-  anything else.
+  reviewer only once it targets the base branch.
 - **Rework:** on `REQUEST_CHANGES` the implementer fixes every `blocker` and
-  `major` on the same branch, re-runs the gate and pushes; a new reviewer
-  re-reviews everything. A suggested fix is an argument, not a tested patch.
+  `major` on the same branch and re-runs the gate; a new reviewer re-reviews
+  everything. A suggested fix is an argument, not a tested patch.
 - **Escalate to the human** when a finding is re-argued without new
   evidence, when the dispute is about what the Issue requires, or at five
   rounds. Leave the PR open.
 
-This is a process control, not an access control: every agent runs as the
-same OS and GitHub user. Branch protection on `main` is what enforces it.
+Locally this is a process control: every agent runs as the same OS user.
+On GitHub the branch ruleset makes it an enforced one: no merge without the
+CI gate and an approving `teamflow/code-review` status on the current head.
 
 ## Cleanup
 When a unit merges: `git worktree remove <path>`, delete the branch, and

@@ -1,0 +1,36 @@
+# teamflow gate in CI: copy to .github/workflows/gate.yml when adopting
+# forge: github. The job name `gate` is the required check the branch
+# ruleset names, so keep it (or update templates/branch-ruleset.json).
+#
+# One job keeps the required check honest. If you split the gate into several
+# jobs, add an aggregate `gate` job with `if: always()` and `needs:` on all of
+# them that fails unless every need's result is `success`: a skipped or
+# cancelled job must not count as a pass.
+name: gate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Install the project's toolchain here, pinned like the action above.
+      - name: Run the gate
+        run: ./scripts/gate.sh

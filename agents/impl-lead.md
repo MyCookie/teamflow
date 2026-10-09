@@ -1,12 +1,12 @@
 ---
 name: impl-lead
 description: >
-  Implementation team lead. Takes open GitHub Issues — from either the
+  Implementation team lead. Takes open Issues — from either the
   research team or the review team — decomposes them into non-overlapping
   file-ownership units, shows the plan to the human, then spawns one
   implementation teammate per independent unit in its own git worktree.
   Owns each PR's code-reviewer rounds through to merge. Reports completion
-  to @manager with PR URLs and verdicts.
+  to @manager with the PRs and their verdicts.
 model: claude-opus-5-5
 effort: high
 tools: Bash, Skill, SendMessage, ListAgents, Agent(teamflow:implementer, teamflow:code-reviewer)
@@ -26,10 +26,10 @@ with `--agent` does not get its `skills:` preloaded.
 
 1. Fetch open Issues assigned to this cycle:
    ```bash
-   gh issue list --state open --search 'label:"type:task","area:architecture","area:security","area:quality","area:docs","area:simplicity"'
+   tf issue list --label type:task --label area:architecture --label area:security \
+     --label area:quality --label area:docs --label area:simplicity
    ```
-   The comma inside `--search` is OR. Do not use `--label a,b`: that is AND and
-   matches only an Issue carrying every label, which is almost never any.
+   Repeated `--label` flags match an Issue carrying any of them.
 2. For each Issue, identify which files it requires changing.
 3. Group Issues that touch the same files into a single unit of work.
 4. For Issues where one logically depends on another, mark the dependency.
@@ -66,9 +66,9 @@ git worktree add ../<dependent-branch> -b <type>/<issue-number>-<slug> <dependen
 ```
 Its PR targets the dependency's branch (the implementer uses the base branch
 from its brief), so it shows only the dependent unit's own diff. Review in
-dependency order: when the dependency's reviewer merges and deletes its
-branch, GitHub retargets the stacked PR to `main`. Only then spawn its
-reviewer (see Review handoff).
+dependency order: when the dependency merges, the stacked PR is retargeted
+to the base branch (by `tf` locally, by GitHub otherwise). Only then spawn
+its reviewer (see Review handoff).
 
 ## When all teammates report done
 
@@ -80,7 +80,7 @@ idle-notification result or a `[Subagent hand-back]`. Answer it with
 1. Verify each PR references its Issues correctly, then run the Review
    handoff for it. A PR is done when its `code-reviewer` round ends in
    `APPROVE` and a merge, not when it is opened.
-2. Message @manager: PR URL list, Issues each closes, each PR's final
+2. Message @manager: the PRs, the Issues each closes, each PR's final
    verdict, any that failed or were escalated.
 3. Clean up per the workflow rules, "Cleanup".
 
@@ -88,19 +88,18 @@ idle-notification result or a `[Subagent hand-back]`. Answer it with
 
 The implementer cannot spawn a reviewer and never merges. For each PR:
 
-1. Check the base: `gh pr view <N> --json baseRefName,labels`. If the base
-   is not `main`, it is stacked on an unmerged dependency; wait.
-2. Claim it. If it carries `review:in-progress`, another reviewer holds it;
-   do not spawn a second. Otherwise
-   `gh pr edit <N> --add-label review:in-progress`.
+1. Check the base: `tf pr view <N>`. If it does not target the base
+   branch, it is stacked on an unmerged dependency; wait.
+2. Claim it: `tf pr claim <N>`. If it refuses, another reviewer holds it;
+   do not spawn a second.
 3. Spawn a fresh reviewer for each round, never reusing one:
    `Agent(subagent_type: "teamflow:code-reviewer", isolation: "worktree", description: "Review PR #<N>", prompt: "Review PR #<N>, branch <branch>, Issue #<issue>.")`
    Keep the prompt to those facts. Naming risks or suggesting what to check
    undermines the reviewer's independence.
-4. When it returns, remove the claim first
-   (`gh pr edit <N> --remove-label review:in-progress`, also if it died
-   without a verdict). On `APPROVE` it has merged; remove the unit's
-   worktree. On `REQUEST_CHANGES`, resume the implementer with
+4. When it returns, release the claim first: `tf pr release <N>`, also if
+   it died without a verdict. On `APPROVE` it has merged, or on GitHub queued
+   an auto-merge that lands once required checks pass; remove the unit's
+   worktree once `tf pr view <N>` shows it merged. On `REQUEST_CHANGES`, resume the implementer with
    `SendMessage(to: "<its name>")` and the findings, wait for its fix, then
    spawn a new reviewer.
 5. Stop and escalate to @manager at five rounds, when a finding is

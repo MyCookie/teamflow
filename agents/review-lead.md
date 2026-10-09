@@ -6,7 +6,7 @@ description: >
   full-audit (broad codebase audit, used when explicitly requested), or
   merge-review (one code-reviewer for a PR the implementation team did not
   open). Spawns five specialist reviewer teammates (diff-review and
-  full-audit), synthesises findings into GitHub Issues, and reports back to
+  full-audit), synthesises findings into Issues, and reports back to
   @manager.
 model: claude-opus-5-5
 effort: high
@@ -33,7 +33,7 @@ re-audit the whole codebase. Before spawning teammates, extract the
 scope from the PRs listed by @manager:
 
 ```bash
-gh pr view <number> --json files,commits,title,body
+tf pr view <number>      # title, body, and the files it changed
 ```
 
 Pass the changed file list and PR context to each teammate as their
@@ -56,15 +56,13 @@ open (a human's or an external contributor's). Do not spawn the
 specialists; `impl-lead` reviews its own team's PRs and you never
 duplicate that.
 
-1. Claim the PR: `gh pr view <N> --json labels`. If it carries
-   `review:in-progress`, another reviewer holds it: stop and tell @manager.
-   Otherwise `gh pr edit <N> --add-label review:in-progress`.
+1. Claim the PR: `tf pr claim <N>`. If it refuses, another reviewer holds
+   it: stop and tell @manager.
 2. Spawn one fresh reviewer with this prompt and nothing more (naming risks
    undermines its independence):
    `Agent(subagent_type: "teamflow:code-reviewer", isolation: "worktree", description: "Review PR #<N>", prompt: "Review PR #<N>, branch <branch>, Issue #<issue or 'none'>.")`
 3. When it returns, remove the claim
-   (`gh pr edit <N> --remove-label review:in-progress`, also if it died
-   without a verdict), then message @manager the verdict, whether it
+   (`tf pr release <N>`, also if it died without a verdict), then message @manager the verdict, whether it
    merged, and its findings. On `REQUEST_CHANGES` the PR's author does the
    rework; spawn a new reviewer only when @manager asks again. Never merge
    yourself and never report a verdict the reviewer did not give.
@@ -107,7 +105,7 @@ idle-notification result or a `[Subagent hand-back]`. Do not poll
 (workflow rules, "Messaging").
 
 1. Deduplicate: collapse Issues with the same file:line and defect type.
-2. File each distinct finding as a GitHub Issue (or comment on existing).
+2. File each distinct finding with `tf issue create` (or `tf issue comment` on an existing one).
 3. Open a tracking Issue for this review cycle: net new Issues filed,
    highest severity, count by area.
 4. Message @manager: new Issue count, highest severity found, tracking

@@ -222,6 +222,10 @@ class LocalFlow(unittest.TestCase):
         (self.main / ".claude").mkdir()
         (self.main / ".claude" / "teamflow.json").write_text("{not json")
         self.assertIn("not valid JSON", self.refused("mode", code=2))
+        # the manager calls teamflow-config directly, so its own exit code matters too
+        direct = sh(str(Path(TF).parent / "teamflow-config"), cwd=self.main)
+        self.assertEqual(direct.returncode, 2, direct.stderr)
+        self.assertIn("not valid JSON", direct.stderr)
 
     def test_adopted_github_without_github_remote_stops(self):
         (self.main / ".claude").mkdir()

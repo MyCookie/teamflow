@@ -1,0 +1,19 @@
+{
+  "name": "teamflow",
+  "version": "0.1.0",
+  "description": "A research, implementation and review agent pipeline with a manager-governed loop and an independent per-PR reviewer that is the only actor allowed to merge",
+  "author": {
+    "name": "Ashish Kansara"
+  },
+  "repository": "https://github.com/MyCookie/teamflow",
+  "keywords": [
+    "agents",
+    "workflow",
+    "code-review",
+    "pipeline"
+  ],
+  "dependencies": [
+    "ponytail@ponytail",
+    "mattpocock-skills@mattpocock"
+  ]
+}

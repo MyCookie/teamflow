@@ -184,9 +184,11 @@ evidence.
   rounds. Leave the PR open.
 
 Locally this is a process control: every agent runs as the same OS user.
-On GitHub with the teamflow branch ruleset it is an enforced one: no merge
+On GitHub the teamflow branch ruleset enforces that no merge happens
 without the CI gate and an approving `teamflow/code-review` status on the
-current head. Without the ruleset it stays a process control.
+current head, so a push after approval always needs a new review. It does
+not prove who reviewed: every agent shares one `gh` login and could set that
+status. Without the ruleset, `tf` checks the same things itself.
 
 ## Cleanup
 When a unit merges: `git worktree remove <path>`, delete the branch, and

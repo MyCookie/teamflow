@@ -141,8 +141,11 @@ Pass the review inline with `--body`, quoted as one argument; no scratch
 file is needed. `tf` refuses if the PR's head has moved since your checkout: a verdict
 belongs to the commit you reviewed. Run `tf pr checkout <N>` again and
 review the new head in full. On GitHub the verdict is also a
-`teamflow/code-review` commit status on that SHA, which branch rules
-require, so a later push needs a new review before it can merge.
+`teamflow/code-review` commit status on that SHA. Where the teamflow ruleset
+is applied, GitHub requires it, so a later push needs a new review before it
+can merge. Every agent shares one `gh` login, so the status proves a verdict
+exists for that commit, not who gave it: never set it yourself outside
+`tf pr review`.
 
 ## 6. Merge: only on APPROVE, only by you
 

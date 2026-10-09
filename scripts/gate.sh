@@ -73,6 +73,7 @@ if command -v claude >/dev/null 2>&1; then
     step "marketplace validates" claude plugin validate --strict .
 else
     results+=("plugin validates|skipped — claude not installed")
+    results+=("marketplace validates|skipped — claude not installed")
 fi
 
 # -- summary: paste this table into the PR body / review ----------------------

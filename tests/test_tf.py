@@ -1,16 +1,18 @@
-"""End-to-end checks for bin/tf in local mode, plus the github-mode refusal.
+"""End-to-end checks for bin/tf: local mode, and github mode against tests/fake_gh.py.
 
     python3 -m unittest discover -s tests
 """
 
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
 TF = str(Path(__file__).resolve().parents[1] / "bin" / "tf")
+FAKE_GH = str(Path(__file__).resolve().parent / "fake_gh.py")
 GIT_ENV = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
 
 
@@ -216,12 +218,157 @@ class LocalFlow(unittest.TestCase):
         self.ok("pr", "checkout", "1", cwd=self.rev)
         self.assertEqual((self.rev / ".env").read_text(), "TOKEN=x\n")
 
+    def test_bad_config_is_a_setup_problem(self):
+        (self.main / ".claude").mkdir()
+        (self.main / ".claude" / "teamflow.json").write_text("{not json")
+        self.assertIn("not valid JSON", self.refused("mode", code=2))
+
     def test_adopted_github_without_github_remote_stops(self):
         (self.main / ".claude").mkdir()
         (self.main / ".claude" / "teamflow.json").write_text(json.dumps({"forge": "github"}))
         git("remote", "add", "origin", "ssh://git@example.com/me/repo.git", cwd=self.main)
         self.assertIn("not a GitHub repository", self.refused("mode", code=2))
         self.refused("issue", "list", code=2)  # never a silent fallback to local
+
+
+
+class GitHubFlow(unittest.TestCase):
+    """github mode, with GitHub played by tests/fake_gh.py and a bare repository."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        base = Path(self.tmp.name)
+        self.bare = base / "github.com" / "me" / "repo.git"  # the path satisfies tf's GitHub-remote check
+        self.main, self.impl, self.rev = base / "main", base / "impl", base / "rev"
+        self.state = base / "gh-state.json"
+        fakebin = base / "fakebin"
+        fakebin.mkdir()
+        (fakebin / "gh").symlink_to(FAKE_GH)
+        self.env = {"PATH": f"{fakebin}{os.pathsep}{os.environ['PATH']}",
+                    "FAKE_GH_STATE": str(self.state), "FAKE_GH_BARE": str(self.bare)}
+
+        self.bare.mkdir(parents=True)
+        git("init", "-q", "--bare", "-b", "main", cwd=self.bare)
+        self.main.mkdir()
+        git("init", "-q", "-b", "main", cwd=self.main)
+        (self.main / ".claude").mkdir()
+        (self.main / ".claude" / "teamflow.json").write_text(json.dumps({"forge": "github"}))
+        (self.main / "app.txt").write_text("v1\n")
+        git("add", "-A", cwd=self.main)
+        git("commit", "-qm", "init", cwd=self.main)
+        git("remote", "add", "origin", str(self.bare), cwd=self.main)
+        git("push", "-q", "origin", "main", cwd=self.main)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def tf(self, *args, cwd=None, env=None):
+        return sh(TF, *args, cwd=cwd or self.main, env={**self.env, **(env or {})})
+
+    def ok(self, *args, cwd=None):
+        result = self.tf(*args, cwd=cwd)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return result.stdout
+
+    def code(self, expected, *args, cwd=None):
+        result = self.tf(*args, cwd=cwd)
+        self.assertEqual(result.returncode, expected, result.stdout + result.stderr)
+        return result.stderr
+
+    def gh_state(self):
+        return json.loads(self.state.read_text())
+
+    def set_checks(self, sha, bucket, required=False):
+        state = self.gh_state()
+        state["checks"][sha] = [{"name": "gate", "bucket": bucket}]
+        state["required"] = required
+        self.state.write_text(json.dumps(state))
+
+    def open_pr(self):
+        self.ok("issue", "create", "--title", "Ship v2", "--body", "Make it v2.", "--label", "type:feature")
+        git("worktree", "add", "-q", "-b", "feat/1-v2", str(self.impl), cwd=self.main)
+        (self.impl / "app.txt").write_text("v2\n")
+        git("commit", "-qam", "feat: v2", cwd=self.impl)
+        self.ok("pr", "create", "--title", "feat: v2", "--body", "Closes #1", cwd=self.impl)  # pushes the branch
+        git("worktree", "add", "-q", "--detach", str(self.rev), cwd=self.main)
+        self.ok("pr", "checkout", "2", cwd=self.rev)
+        return git("rev-parse", "HEAD", cwd=self.rev)
+
+    def test_issue_view_prints_without_a_terminal(self):
+        self.assertEqual(self.ok("mode").strip(), "github")
+        self.ok("issue", "create", "--title", "Bug", "--body", "It breaks.", "--label", "type:bug")
+        self.ok("issue", "comment", "1", "--body", "Seen on main.")
+        view = self.ok("issue", "view", "1")  # captured output: no terminal, as for an agent
+        for text in ("#1 Bug", "labels: type:bug", "It breaks.", "Seen on main."):
+            self.assertIn(text, view)
+        self.assertIn("#1", self.ok("issue", "list", "--label", "area:docs", "--label", "type:bug"))
+        self.assertEqual(self.ok("issue", "list", "--label", "area:docs"), "")
+
+    def test_claim_gate_review_and_unenforced_merge(self):
+        head = self.open_pr()
+        self.assertIn("files: app.txt", self.ok("pr", "view", "2"))
+
+        self.ok("pr", "claim", "2")
+        self.code(3, "pr", "claim", "2")  # pending status = claimed
+        self.ok("pr", "release", "2")
+        self.assertIn("error", self.ok("pr", "view", "2"))  # abandoned claim
+        self.ok("pr", "claim", "2")
+
+        self.code(2, "pr", "gate", "2", cwd=self.rev)  # no gate check at all
+        self.set_checks(head, "pending")
+        self.code(3, "pr", "gate", "2", cwd=self.rev)
+        self.set_checks(head, "fail")
+        self.code(1, "pr", "gate", "2", cwd=self.rev)
+        self.set_checks(head, "pass")
+        self.ok("pr", "gate", "2", cwd=self.rev)
+
+        self.code(3, "pr", "review", "2", "--verdict", "APPROVE", "--sha", "0" * 40, "--body", "x", cwd=self.rev)
+        self.ok("pr", "review", "2", "--verdict", "APPROVE", "--sha", head, "--body", "**Verdict: APPROVE**", cwd=self.rev)
+        self.assertIn("success (APPROVE", self.ok("pr", "view", "2"))
+        self.assertEqual(self.gh_state()["reviews"][-1]["body"], "**Verdict: APPROVE**")
+
+        # a push after the approval: the new head has no verdict
+        (self.impl / "late.txt").write_text("late\n")
+        git("add", "late.txt", cwd=self.impl)
+        git("commit", "-qm", "feat: late", cwd=self.impl)
+        git("push", "-q", "origin", "feat/1-v2", cwd=self.impl)
+        self.assertIn("no APPROVE", self.code(3, "pr", "merge", "2", cwd=self.rev))
+
+        self.ok("pr", "checkout", "2", cwd=self.rev)
+        head = git("rev-parse", "HEAD", cwd=self.rev)
+        self.ok("pr", "review", "2", "--verdict", "APPROVE", "--sha", head, "--body", "ok", cwd=self.rev)
+        self.set_checks(head, "fail")
+        self.code(1, "pr", "merge", "2", cwd=self.rev)  # no ruleset: tf itself refuses a red gate
+        self.assertEqual(self.gh_state()["merges"], [])
+        self.set_checks(head, "pass")
+        self.ok("pr", "merge", "2", cwd=self.rev)
+        merge = self.gh_state()["merges"][-1]
+        self.assertFalse(merge["auto"])
+        self.assertEqual(merge["subject"], "Merge feat/1-v2: feat: v2")
+        self.assertEqual(self.gh_state()["prs"]["2"]["state"], "MERGED")
+
+    def test_enforced_repository_uses_auto_merge(self):
+        head = self.open_pr()
+        self.set_checks(head, "pass", required=True)
+        self.ok("pr", "gate", "2", cwd=self.rev)
+        self.ok("pr", "review", "2", "--verdict", "APPROVE", "--sha", head, "--body", "ok", cwd=self.rev)
+        self.ok("pr", "merge", "2", cwd=self.rev)
+        self.assertTrue(self.gh_state()["merges"][-1]["auto"])
+        self.assertEqual(self.gh_state()["prs"]["2"]["state"], "OPEN")  # GitHub merges it later
+
+    def test_missing_gh_stops(self):
+        bare_path = Path(self.tmp.name) / "nogh"
+        bare_path.mkdir()
+        for tool in ("git", "python3"):
+            (bare_path / tool).symlink_to(shutil.which(tool))
+        result = self.tf("mode", env={"PATH": str(bare_path)})
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("gh is not installed", result.stderr)
+
+    def test_logged_out_gh_stops(self):
+        result = self.tf("issue", "list", env={"FAKE_GH_LOGGED_OUT": "1"})
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("not authenticated", result.stderr)
 
 
 if __name__ == "__main__":

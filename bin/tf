@@ -71,7 +71,10 @@ def git(*args, cwd=None, check=True):
 
 
 def config():
-    return json.loads(run(str(HERE / "teamflow-config")))
+    result = subprocess.run([str(HERE / "teamflow-config")], text=True, capture_output=True)
+    if result.returncode:
+        raise SetupError(result.stderr.strip().removeprefix("teamflow-config: "))
+    return json.loads(result.stdout)
 
 
 def now():
@@ -362,8 +365,8 @@ class GitHub:
             raise SetupError("forge is github but gh is not authenticated (gh auth login)")
         self.slug = f"{match.group(1)}/{match.group(2)}"
 
-    def gh(self, *args, capture=True):
-        return run("gh", *args, "-R", self.slug, capture=capture)
+    def gh(self, *args):
+        return run("gh", *args, "-R", self.slug)
 
     def api(self, *args):
         return run("gh", "api", *args)
@@ -393,7 +396,13 @@ class GitHub:
             print(f"#{i['number']}\t{i['title']}\t{','.join(l['name'] for l in i['labels'])}")
 
     def issue_view(self, n):
-        self.gh("issue", "view", str(n), "--comments", capture=False)
+        # Formatted from JSON: `gh issue view --comments` prints only the comments
+        # when stdout is not a terminal, and agents never have one.
+        i = json.loads(self.gh("issue", "view", str(n), "--json", "title,state,labels,body,comments"))
+        print(f"#{n} {i['title']}\nstate: {i['state'].lower()}\n"
+              f"labels: {', '.join(l['name'] for l in i['labels']) or '-'}\n\n{i['body']}")
+        for c in i["comments"]:
+            print(f"\n--- comment {c['createdAt']}\n{c['body']}")
 
     def issue_comment(self, n, body):
         print(self.gh("issue", "comment", str(n), "--body", body))
@@ -441,6 +450,8 @@ class GitHub:
         print(git("diff", f"FETCH_HEAD...{pr['headRefOid']}", "--", *paths))
 
     def pr_claim(self, n):
+        # ponytail: check-then-set, so two claims in the same instant can both win.
+        # Only the one lead that owns a PR ever claims it; add a nonce re-read if that changes.
         sha = self.head(n)["headRefOid"]
         latest = self.statuses(sha)
         if latest and latest[0]["state"] == "pending":

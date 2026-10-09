@@ -60,8 +60,10 @@ modes, set by `forge` in `.claude/teamflow.json`:
 - **`github` (opt-in).** Issues and PRs live on GitHub. The local
   duplicates switch off: a `teamflow/code-review` commit status on the
   reviewed head replaces review labels, CI's `gate` check replaces the
-  reviewer's second gate run, and GitHub merges once both pass. A branch
-  ruleset enforces it.
+  reviewer's second gate run. With the teamflow branch ruleset, GitHub
+  enforces both and merges once they pass. Without a ruleset (for example a
+  private repository on a free plan), `tf` checks them itself and merges:
+  the same process control as local mode.
 
 To adopt GitHub mode in a repository:
 

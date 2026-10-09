@@ -153,8 +153,10 @@ tf pr merge <N>
 It refuses (exit 3) unless the PR targets the base branch and your APPROVE
 is for its current head. Locally it merges into the base branch with a
 `Reviewed-by:` trailer and closes the Issues the PR body closes; it never
-pushes. On GitHub it enables auto-merge, and GitHub merges once every
-required check passes. A refusal is a STOP: report it, do not work around
+pushes. On GitHub with a ruleset it enables auto-merge, and GitHub merges
+once every required check passes; without one, `tf` checks the CI `gate`
+check and your verdict itself, then merges. Either way the merge is pinned
+to the head you approved. A refusal is a STOP: report it, do not work around
 it. Never reach for `--admin`, a direct `git push`, or a self-approval. On
 `REQUEST_CHANGES`, merge nothing and leave the branch alone.
 

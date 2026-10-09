@@ -96,7 +96,7 @@ never `gh` directly. The repository's `.claude/teamflow.json` sets `forge`;
 | One reviewer per PR | `tf pr claim`: a lock | `tf pr claim`: a pending `teamflow/code-review` status on the head |
 | Gate at review | The reviewer runs `scripts/gate.sh` (`tf pr gate`) | CI's required checks on the head (`tf pr gate`); no second local run |
 | Verdict | Recorded against the reviewed head SHA | A PR comment plus a `teamflow/code-review` status on that SHA |
-| Merge | `tf pr merge` merges into the base branch; nothing is pushed | `tf pr merge` enables auto-merge; GitHub merges once required checks pass |
+| Merge | `tf pr merge` merges into the base branch; nothing is pushed | With a ruleset, `tf pr merge` enables auto-merge and GitHub merges once required checks pass; without one, `tf` checks the CI `gate` check and the verdict itself, then merges |
 | Stacked PR after its dependency merges | `tf` retargets it to the base branch | GitHub retargets it |
 
 A repository that adopted `github` but lacks `gh`, its login, or a GitHub
@@ -184,8 +184,9 @@ evidence.
   rounds. Leave the PR open.
 
 Locally this is a process control: every agent runs as the same OS user.
-On GitHub the branch ruleset makes it an enforced one: no merge without the
-CI gate and an approving `teamflow/code-review` status on the current head.
+On GitHub with the teamflow branch ruleset it is an enforced one: no merge
+without the CI gate and an approving `teamflow/code-review` status on the
+current head. Without the ruleset it stays a process control.
 
 ## Cleanup
 When a unit merges: `git worktree remove <path>`, delete the branch, and

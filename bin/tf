@@ -24,8 +24,10 @@ The mode comes from `forge` in .claude/teamflow.json (see teamflow-config):
   and `tf pr merge` merges into the base branch locally. Nothing is pushed.
 - github: Issues and PRs live on GitHub. A `teamflow/code-review` commit status
   on the reviewed head is the claim (pending) and the verdict (success or
-  failure), replacing review labels; CI's required checks replace the
-  reviewer's own gate run; GitHub merges once every required check passes.
+  failure), replacing review labels; CI's checks replace the reviewer's own
+  gate run. Where a ruleset makes checks required, GitHub enforces them and
+  merges once they pass. Without one, tf checks the CI `gate` check and the
+  verdict itself before merging, which is a process control only.
   If the repository adopted github but gh is missing, unauthenticated, or the
   remote is not GitHub, every command stops (exit 2): never a silent fallback.
 
@@ -45,6 +47,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 TEMPLATE = ".github/pull_request_template.md"
 STATUS = "teamflow/code-review"
+GATE = "gate"
 
 
 class Refused(Exception):
@@ -452,13 +455,20 @@ class GitHub:
             self.set_status(sha, "error", "review abandoned without a verdict")
         print(f"#{n}: released")
 
+    def checks(self, n, required):
+        args = ["gh", "pr", "checks", str(n), "-R", self.slug, "--json", "name,bucket"]
+        result = subprocess.run(args + (["--required"] if required else []), text=True, capture_output=True)
+        return [c for c in json.loads(result.stdout or "[]") if c["name"] != STATUS]
+
+    def enforced(self, n):
+        """A ruleset makes checks required; then GitHub, not tf, enforces the merge."""
+        return bool(self.checks(n, required=True))
+
     def pr_gate(self, n):
-        """CI replaces the reviewer's local run: every required check but ours must pass."""
-        result = subprocess.run(["gh", "pr", "checks", str(n), "-R", self.slug, "--required",
-                                 "--json", "name,bucket"], text=True, capture_output=True)
-        checks = [c for c in json.loads(result.stdout or "[]") if c["name"] != STATUS]
+        """CI replaces the reviewer's local run: the required checks, or else the `gate` check, must pass."""
+        checks = self.checks(n, required=True) or [c for c in self.checks(n, required=False) if c["name"] == GATE]
         if not checks:
-            raise SetupError(f"#{n} has no required CI checks; apply the teamflow ruleset and CI workflow")
+            raise SetupError(f"#{n} has no `{GATE}` check; add templates/ci.yml as .github/workflows/gate.yml")
         for c in checks:
             print(f"{c['name']}: {c['bucket']}")
         if any(c["bucket"] == "pending" for c in checks):
@@ -482,9 +492,13 @@ class GitHub:
         if not latest or latest[0]["state"] != "success":
             raise Refused(f"#{n} has no APPROVE for its current head {pr['headRefOid'][:12]}")
         body = "\n".join([*(f"Closes #{i}" for i in closes(pr["body"])), "Reviewed-by: teamflow:code-reviewer"])
-        print(self.gh("pr", "merge", str(n), "--merge", "--auto",
-                      "--subject", f"Merge {pr['headRefName']}: {pr['title']}", "--body", body) or
-              f"#{n}: auto-merge enabled; GitHub merges once every required check passes")
+        args = ["pr", "merge", str(n), "--merge", "--match-head-commit", pr["headRefOid"],
+                "--subject", f"Merge {pr['headRefName']}: {pr['title']}", "--body", body]
+        if self.enforced(n):
+            print(self.gh(*args, "--auto") or f"#{n}: auto-merge enabled; GitHub merges once every required check passes")
+            return
+        self.pr_gate(n)  # unenforced repository: tf is the only thing checking the gate
+        print(self.gh(*args) or f"#{n}: merged")
 
 
 # -- CLI ---------------------------------------------------------------------

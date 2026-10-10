@@ -205,6 +205,32 @@ class LocalFlow(unittest.TestCase):
         self.assertNotIn("conflicts", result.stderr)
         self.assertIn("merging #1 failed", result.stderr)
 
+    def test_config_comes_from_the_main_worktree_not_the_pr_under_review(self):
+        # a PR that rewrites the config must not change the rules its own review runs under
+        # The PR targets `dev` and its head moves `base` to `dev`: judged by its own
+        # config it would merge into dev.
+        git("branch", "dev", cwd=self.main)
+        git("worktree", "add", "-q", "-b", "feat/1-cfg", str(self.impl), cwd=self.main)
+        (self.impl / ".claude").mkdir()
+        (self.impl / ".claude" / "teamflow.json").write_text(json.dumps({"base": "dev"}))
+        git("add", ".claude", cwd=self.impl)
+        git("commit", "-qm", "chore: rewrite config", cwd=self.impl)
+        self.ok("pr", "create", "--title", "cfg", "--body", "x", "--base", "dev", cwd=self.impl)
+        git("worktree", "add", "-q", "--detach", str(self.rev), cwd=self.main)
+        self.ok("pr", "checkout", "1", cwd=self.rev)
+        sha = git("rev-parse", "HEAD", cwd=self.rev)
+        self.ok("pr", "review", "1", "--verdict", "APPROVE", "--sha", sha, "--body", "ok", cwd=self.rev)
+        config = sh(str(Path(TF).parent / "teamflow-config"), "base", cwd=self.rev)
+        self.assertEqual(config.stdout.strip(), "main", config.stderr)
+        self.assertIn("targets dev, not main", self.refused("pr", "merge", "1", cwd=self.rev))
+
+    def test_main_worktree_off_the_base_branch_is_a_setup_problem(self):
+        # Its working copy is the trusted config only while it is on the base branch.
+        git("switch", "-q", "-c", "feat/9-local", cwd=self.main)
+        self.assertIn("must be on main", self.refused("mode", code=2))
+        git("switch", "-q", "main", cwd=self.main)
+        self.assertEqual(self.ok("mode").strip(), "local")
+
     def test_env_example_without_env_stops_checkout(self):
         (self.main / ".env.example").write_text("TOKEN=\n")
         git("add", ".env.example", cwd=self.main)

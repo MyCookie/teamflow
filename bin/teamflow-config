@@ -4,9 +4,14 @@
     teamflow-config            # the whole config, as JSON
     teamflow-config <key>      # one value, e.g. loop.max_iterations
 
-Reads .claude/teamflow.json at the repository root and fills in defaults for
-anything it does not set. Configuration is per repository, so it is committed
-with the project rather than kept in each user's settings.
+Reads .claude/teamflow.json from the main worktree, the trusted checkout the
+team runs from, and fills in defaults for anything it does not set. Never the
+current worktree: a reviewer's worktree holds the PR under review, which must
+not choose the rules its own review and merge run under. For the same reason
+the main worktree must be on the base branch: on any other branch its copy of
+the file is unreviewed, so that is a setup problem (exit 2). Configuration is
+per repository, so it is committed with the project rather than kept in each
+user's settings.
 """
 
 import json
@@ -60,12 +65,14 @@ def merge(base, override, path=""):
 
 def main():
     try:
-        root = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
+        listing = subprocess.run(
+            ["git", "worktree", "list", "--porcelain"],
             capture_output=True, text=True, check=True,
-        ).stdout.strip()
+        ).stdout.split("\n\n")[0].splitlines()
     except (OSError, subprocess.CalledProcessError):
         fail("not inside a git repository")
+    root = listing[0].removeprefix("worktree ")
+    branch = next((l.removeprefix("branch refs/heads/") for l in listing if l.startswith("branch ")), None)
 
     try:
         with open(f"{root}/.claude/teamflow.json", encoding="utf-8") as f:
@@ -78,6 +85,10 @@ def main():
         fail(".claude/teamflow.json must be a JSON object")
 
     config = merge(DEFAULTS, raw)
+    if branch != config["base"]:
+        fail(f"the main worktree ({root}) must be on {config['base']}, not "
+             f"{branch or 'a detached HEAD'}: its config is trusted only there. "
+             "Work on other branches in separate worktrees.")
 
     if len(sys.argv) == 1:
         print(json.dumps(config, indent=2))

@@ -2,7 +2,7 @@
 """teamflow's one interface to Issues and PRs, local or on GitHub.
 
     tf mode
-    tf issue create --title T (--body B | --body-file F) [--label L ...]
+    tf issue create --title T (--body B | --body-file F) [--label L ...]   # F may be - for stdin
     tf issue list [--label L ...]                # open Issues carrying any label
     tf issue view N
     tf issue comment N (--body B | --body-file F)
@@ -516,14 +516,17 @@ class GitHub:
 
 
 def body_args(parser):
-    """--body passes text inline, so an agent never needs a scratch file."""
+    """--body-file - reads stdin, so an agent passes text as a quoted heredoc
+    (<<'EOF'): the shell expands nothing inside it, and no scratch file is needed."""
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--body")
     group.add_argument("--body-file")
 
 
 def body(a):
-    return a.body if a.body is not None else read_file(a.body_file)
+    if a.body is not None:
+        return a.body
+    return sys.stdin.read() if a.body_file == "-" else read_file(a.body_file)
 
 
 def forge():

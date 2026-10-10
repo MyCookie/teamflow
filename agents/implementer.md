@@ -50,13 +50,17 @@ scope.
    cannot fix it within your owned files, commit what you have, do not open
    a PR, and stop and report the failing checks.
 2. `git status`: only your owned files changed, and the tree is clean.
-3. Write the PR body from the template. It is the one permitted write
-   outside your worktree, so the tree stays clean:
-   `cp .github/pull_request_template.md /tmp/pr-body-<issue-number>.md`, then
-   fill in every section, including `Closes #<number>` for each Issue and the
-   gate table from your own run.
-4. Publish: `tf pr create --title "<type>(<scope>): <description>" --body-file /tmp/pr-body-<issue-number>.md --base <base-branch>`
-   (base branch from your brief: `main`, or the dependency's branch). It
+3. Write the PR body from `.github/pull_request_template.md`: fill in every
+   section, including `Closes #<number>` for each Issue and the gate table
+   from your own run, and pass it as a quoted heredoc (step 4).
+4. Publish (base branch from your brief: `main`, or the dependency's branch):
+   ```bash
+   tf pr create --title '<type>(<scope>): <description>' --base <base-branch> --body-file - <<'EOF'
+   <the filled-in template>
+   EOF
+   ```
+   A quoted heredoc (`<<'EOF'`) leaves the body literal: apostrophes,
+   backticks and `$` included. Keep titles free of quotes and backticks. It
    refuses a dirty tree, the base branch, a detached HEAD, or an unedited
    template, and on GitHub it pushes the branch first.
 5. Stop and report (your final message; call `SubagentHandback` if you have

@@ -23,7 +23,13 @@ undocumented public APIs, and stale docs that contradict the current
 implementation.
 
 ## For every finding
-`tf issue create --title "..." --body "..." --label severity:<level> --label area:docs`
+```bash
+tf issue create --title '<one line>' --label severity:<level> --label area:docs --body-file - <<'EOF'
+<the Issue body>
+EOF
+```
+A quoted heredoc (`<<'EOF'`) leaves the body literal: apostrophes,
+backticks and `$` included. Keep titles free of quotes and backticks.
 
 Issue body must include (per the workflow rules, "Issues"):
 - Severity: high / medium / low / needs-discussion

@@ -67,6 +67,17 @@ step "manifests parse" manifests_parse
 
 step "unit tests" python3 -m unittest discover -s tests
 
+# Agents copy these command shapes, so bodies must reach tf as a quoted
+# heredoc on stdin (#9): double quotes run backtick spans as commands, and in
+# single quotes an apostrophe in prose ends the string and does the same.
+# Flags an inline --body in any form, a double-quoted --title, and a heredoc
+# whose delimiter is not quoted.
+quoting_is_safe() {
+    ! grep -rnE -- '--body([[:space:]=]|$)|--title(=|[[:space:]]+)"|<<-?[[:space:]]*[A-Za-z_]' \
+        agents skills README.md
+}
+step "agent docs pass bodies safely" quoting_is_safe
+
 # Plugin validation needs the claude CLI (no login). CI installs it, so in CI
 # a missing claude fails the gate rather than skipping a required check.
 missing_claude() {

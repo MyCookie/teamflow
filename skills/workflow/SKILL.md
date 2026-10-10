@@ -101,11 +101,14 @@ branches happens in separate worktrees.
 | Gate at review | The reviewer runs `scripts/gate.sh` (`tf pr gate`) | CI's required checks on the head (`tf pr gate`); no second local run |
 | Verdict | Recorded against the reviewed head SHA | A PR comment plus a `teamflow/code-review` status on that SHA |
 | Merge | `tf pr merge` merges into the base branch; nothing is pushed | With a ruleset, `tf pr merge` enables auto-merge and GitHub merges once required checks pass; without one, `tf` checks the CI `gate` check and the verdict itself, then merges |
-| Stacked PR after its dependency merges | `tf` retargets it to the base branch | GitHub retargets it |
+| Stacked PR after its dependency merges | `tf` retargets it to the base branch | GitHub retargets it, because adoption deletes merged branches (`delete_branch_on_merge`); without that it stays on the old base |
 
 A repository that adopted `github` but lacks `gh`, its login, or a GitHub
 remote makes every `tf` command stop with exit 2. Never fall back to local
 or to raw `git`/`gh` to get around it: report it.
+
+`tf pr checkout` fetches the PR's branch from the configured remote, so PRs
+from forks cannot be reviewed.
 
 Exit codes: 0 ok, 1 error, 2 setup or usage problem, 3 refused because of PR state
 (claimed, moved head, no approval). Exit 3 is a STOP, not a retry signal.
@@ -115,8 +118,16 @@ Labels: `severity:high|medium|low`, `needs-discussion`,
 `area:architecture|security|quality|docs|simplicity|research`,
 `type:feature|bug|task`. Research Issues use `type:task`; review findings
 use their `area:` label. File with
-`tf issue create --title "..." --body "..." --label <l> [--label <l>]`.
-Pass bodies inline with `--body`; no scratch file is needed.
+```bash
+tf issue create --title '<one line>' --label <l> [--label <l>] --body-file - <<'EOF'
+<the Issue body>
+EOF
+```
+Every body (Issues, comments, PRs, reviews) goes in a quoted heredoc on
+stdin. Inside double quotes the shell runs backtick spans as commands;
+inside single quotes an ordinary apostrophe ends the string and does the
+same; inside `<<'EOF'` nothing is expanded. Keep titles to one line in
+single quotes, with no quotes or backticks. No scratch file is needed.
 
 Every Issue carries:
 - **Severity**: high / medium / low / needs-discussion, grounded in a
@@ -156,8 +167,9 @@ been set up for teamflow: stop and report.
 
 ## Opening a PR
 ```bash
-cp .github/pull_request_template.md /tmp/pr-body-<issue>.md   # then fill it in
-tf pr create --title "<type>(<scope>): <description>" --body-file /tmp/pr-body-<issue>.md [--base <branch>]
+tf pr create --title '<type>(<scope>): <description>' [--base <branch>] --body-file - <<'EOF'
+<the filled-in .github/pull_request_template.md>
+EOF
 ```
 `tf pr create` refuses a dirty tree, the base branch, a detached HEAD, or an
 unedited template, and pushes the branch first on GitHub. The body carries
@@ -181,8 +193,8 @@ evidence.
 - **Stacked PRs** are reviewed in dependency order: spawn a stacked PR's
   reviewer only once it targets the base branch.
 - **Rework:** on `REQUEST_CHANGES` the implementer fixes every `blocker` and
-  `major` on the same branch and re-runs the gate; a new reviewer re-reviews
-  everything. A suggested fix is an argument, not a tested patch.
+  `major` on the same branch, re-runs the gate, and on GitHub pushes the
+  fix; a new reviewer re-reviews everything. A suggested fix is an argument, not a tested patch.
 - **Escalate to the human** when a finding is re-argued without new
   evidence, when the dispute is about what the Issue requires, or at five
   rounds. Leave the PR open.

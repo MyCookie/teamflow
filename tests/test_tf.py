@@ -78,6 +78,14 @@ class LocalFlow(unittest.TestCase):
         self.assertNotIn("#2", self.ok("issue", "list"))
         self.refused("pr", "view", "1")  # an Issue is not a PR
 
+    def test_body_from_stdin_is_stored_verbatim(self):
+        # a quoted heredoc on stdin: the shell expands nothing, apostrophes included
+        body = "It doesn't `rm -rf /`, and $HOME stays literal: it's text.\n"
+        result = subprocess.run([TF, "issue", "create", "--title", "t", "--body-file", "-"], input=body,
+                                cwd=self.main, text=True, capture_output=True, env={**os.environ, **GIT_ENV})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(body.strip(), self.ok("issue", "view", "1"))
+
     def test_pr_review_and_merge(self):
         self.ok("issue", "create", "--title", "Ship v2", "--body-file", str(self.body))
         git("worktree", "add", "-q", "-b", "feat/1-v2", str(self.impl), cwd=self.main)

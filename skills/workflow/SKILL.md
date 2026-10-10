@@ -90,7 +90,9 @@ Every agent reaches Issues and PRs through `tf` (on PATH from the plugin),
 never `gh` directly. The repository's `.claude/teamflow.json` sets `forge`;
 `tf mode` prints it. Configuration is always read from the main worktree,
 never from the worktree `tf` runs in, so a PR that changes it takes effect
-only once merged and pulled.
+only once merged and pulled. The main worktree must stay on the base branch;
+on any other branch every `tf` command stops (exit 2). All work on other
+branches happens in separate worktrees.
 
 | | `local` (default) | `github` (adopted) |
 |---|---|---|

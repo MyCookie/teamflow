@@ -44,8 +44,9 @@ A plugin can't change project settings, so each repository needs:
                "human_checkpoint": "every_cycle", "max_open_issues_to_continue": 0 } }
    ```
    `teamflow-config` prints the effective values. Both read the file from
-   the main worktree, so a PR under review can't change the rules its own
-   review runs under.
+   the main worktree, which must stay on the base branch (`tf` stops
+   otherwise), so a PR under review can't change the rules its own review
+   runs under. Work on other branches in separate worktrees.
 4. **Ignore runtime state:** add `.manager-state.json`, `.claude/worktrees/`
    and `.env` to `.gitignore`.
 

@@ -249,6 +249,15 @@ class LocalFlow(unittest.TestCase):
         (self.main / ".claude" / "teamflow.json").write_text(json.dumps({"forge": "GitHub"}))
         self.assertIn("'forge' must be one of", self.refused("mode", code=2))
 
+    def test_bare_main_checkout_is_named_as_such(self):
+        bare = Path(self.tmp.name) / "bare.git"
+        git("clone", "-q", "--bare", str(self.main), str(bare), cwd=self.main)
+        wt = Path(self.tmp.name) / "wt"
+        git("--git-dir", str(bare), "worktree", "add", "-q", str(wt), "main", cwd=self.main)
+        result = self.tf("mode", cwd=wt)
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("bare repository", result.stderr)
+
     def test_bad_config_is_a_setup_problem(self):
         (self.main / ".claude").mkdir()
         (self.main / ".claude" / "teamflow.json").write_text("{not json")

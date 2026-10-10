@@ -88,7 +88,9 @@ author's say-so.**
 ## Issues and PRs: `tf`
 Every agent reaches Issues and PRs through `tf` (on PATH from the plugin),
 never `gh` directly. The repository's `.claude/teamflow.json` sets `forge`;
-`tf mode` prints it.
+`tf mode` prints it. Configuration is always read from the main worktree,
+never from the worktree `tf` runs in, so a PR that changes it takes effect
+only once merged and pulled.
 
 | | `local` (default) | `github` (adopted) |
 |---|---|---|

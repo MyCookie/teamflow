@@ -205,6 +205,20 @@ class LocalFlow(unittest.TestCase):
         self.assertNotIn("conflicts", result.stderr)
         self.assertIn("merging #1 failed", result.stderr)
 
+    def test_config_comes_from_the_main_worktree_not_the_pr_under_review(self):
+        # a PR that rewrites the config must not change the rules its own review runs under
+        git("worktree", "add", "-q", "-b", "feat/1-cfg", str(self.impl), cwd=self.main)
+        (self.impl / ".claude").mkdir()
+        (self.impl / ".claude" / "teamflow.json").write_text(json.dumps({"forge": "github", "base": "feat/1-cfg"}))
+        git("add", ".claude", cwd=self.impl)
+        git("commit", "-qm", "chore: rewrite config", cwd=self.impl)
+        self.ok("pr", "create", "--title", "cfg", "--body", "x", cwd=self.impl)
+        git("worktree", "add", "-q", "--detach", str(self.rev), cwd=self.main)
+        self.ok("pr", "checkout", "1", cwd=self.rev)
+        self.assertEqual(self.ok("mode", cwd=self.rev).strip(), "local")
+        config = sh(str(Path(TF).parent / "teamflow-config"), "base", cwd=self.rev)
+        self.assertEqual(config.stdout.strip(), "main", config.stderr)
+
     def test_env_example_without_env_stops_checkout(self):
         (self.main / ".env.example").write_text("TOKEN=\n")
         git("add", ".env.example", cwd=self.main)

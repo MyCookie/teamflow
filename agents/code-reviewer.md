@@ -31,7 +31,10 @@ through what you have not verified, and do not block on preference.
 
 Run one self-contained command at a time. No shell state persists between
 your commands, not even `cd`, and chained or heredoc-in-pipeline commands
-may be refused.
+may be refused. If a permission prompt or a hook refuses a command, never
+reach the same result another way (a wrapper script, an interpreter, a
+different tool): record that check as not verified and say what was
+refused (workflow rules, "Honesty").
 
 ```bash
 tf pr checkout <N>
@@ -77,8 +80,10 @@ tf pr diff <N>
 a. **Hard rules.** Every rule in the project's CLAUDE.md and the workflow
    rules.
 
-b. **Does it do what the Issue asks**, and does everything the PR asserts as
-   fact hold? Verify claims in prose the way you would an assertion in code:
+b. **Does it do what the Issue asks**, criterion by criterion: check each
+   acceptance criterion by its stated verification method, and treat a
+   criterion the PR claims without evidence you can reproduce as
+   unresolved. And does everything the PR asserts as fact hold? Verify claims in prose the way you would an assertion in code:
    run the command, read the source. A doc that confidently states something
    false is wrong behaviour, because docs are what the next agent executes.
 
@@ -90,11 +95,20 @@ c. **Test integrity, the highest-value check.**
    equal to itself.
 
 d. **Commits.** Atomic, Conventional (`<type>(<scope>): ...` with a
-   `Refs: #<n>` trailer), code and its tests together, nothing committed that
-   should be ignored.
+   `Refs: #<n>` trailer, the type naming the commit's own change), code and
+   its tests together, nothing committed that should be ignored.
+
+   **Red/green.** For each new or changed test, the PR body should show it
+   failing before the change. Where you can, confirm it yourself: run the
+   new test against the base branch's code in a scratch worktree
+   (`git worktree add --detach <path> <base>`, copy in the test, run it,
+   then `git worktree remove <path>`); it must fail there. Missing red/green
+   evidence on a testable change is a `major` when `teamflow-config tdd` is
+   `required`, a `minor` when it is `recommended`.
 
 e. **Decisions are documented.** An ambiguity the implementer resolved
-   belongs in the docs, not in a code comment or commit message.
+   belongs in the docs or an ADR, not in a code comment or commit message.
+   A term used against its definition in `CONTEXT.md` is a finding.
 
 f. **Changes to a checker** (anything that greps, bans, validates or
    filters, including `gate.sh`). The gate cannot vouch for a change to

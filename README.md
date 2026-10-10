@@ -37,10 +37,13 @@ A plugin can't change project settings, so each repository needs:
 2. **The gate.** Copy `templates/gate.sh` to `scripts/gate.sh`, add the
    project's lint and test steps, and make it green on `main`. Copy
    `templates/pull_request_template.md` to `.github/`.
-3. **Loop bounds** (optional). Defaults apply without a file; override any of
-   them in `.claude/teamflow.json`:
+3. **Loop bounds and test-first** (optional). Defaults apply without a
+   file; override any of them in `.claude/teamflow.json`. `tdd` is
+   `required` (default) or `recommended`: how strictly reviewers grade
+   missing red/green evidence.
    ```json
-   { "loop": { "max_iterations": 3, "exit_severity_threshold": "medium",
+   { "tdd": "required",
+     "loop": { "max_iterations": 3, "exit_severity_threshold": "medium",
                "human_checkpoint": "every_cycle", "max_open_issues_to_continue": 0 } }
    ```
    `teamflow-config` prints the effective values. `tf` and

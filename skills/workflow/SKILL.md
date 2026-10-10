@@ -63,6 +63,21 @@ author's say-so.**
 - **Blocked**: a dependency is unmet or a file-ownership conflict exists.
   Stop and make the blocker your final message; do not proceed.
 
+## Honesty
+Every report, PR body, review and Issue states only what you observed.
+- **Report what ran.** Give the exact command and its result for every
+  check you claim. A check you did not run is "not verified", never "passes".
+- **Skipped is not passed.** A skipped, cancelled or unrun check is reported
+  as such. A target (say, 95% coverage) is not an achievement until measured.
+- **Missing evidence is unresolved.** Treat a claim you cannot trace to a
+  command, a file, or a source as open, in your own work and in others'.
+- **Never work around a refusal.** If a permission prompt, a hook, or `tf`
+  refuses something, do not reach the same result another way (a wrapper
+  script, a different tool, an interpreter). Report the check as not
+  verified and say what was refused.
+- **Report failures as failures,** with the output, even when a later step
+  passed.
+
 ## Messaging
 - Address sessions by `@name`. Lead with status, then detail. Keep it short.
 - No progress updates mid-task unless blocked. Do not poll; use idle
@@ -113,6 +128,14 @@ from forks cannot be reviewed.
 Exit codes: 0 ok, 1 error, 2 setup or usage problem, 3 refused because of PR state
 (claimed, moved head, no approval). Exit 3 is a STOP, not a retry signal.
 
+## Domain language
+When the project has `CONTEXT.md` (its glossary) or `docs/adr/` (its
+recorded decisions), read them before planning, implementing or reviewing,
+and use the terms as defined there. Reviewers flag a term used against its
+definition. A decision worth keeping (a trade-off, a rejected option, a
+convention) becomes an ADR; the `domain-modeling` skill writes ADRs and
+`CONTEXT.md` entries.
+
 ## Issues
 Labels: `severity:high|medium|low`, `needs-discussion`,
 `area:architecture|security|quality|docs|simplicity|research`,
@@ -129,7 +152,18 @@ inside single quotes an ordinary apostrophe ends the string and does the
 same; inside `<<'EOF'` nothing is expanded. Keep titles to one line in
 single quotes, with no quotes or backticks. No scratch file is needed.
 
-Every Issue carries:
+**Research Issues are typed briefs**, so implementation and review can
+check each claim:
+- **Objective**: one outcome.
+- **Requirements**: `R1`, `R2`, ... each marked required or optional.
+- **Acceptance criteria**: `A1`, `A2`, ... each with a **Verification**
+  method: the test, command, or reading that shows it holds. A criterion
+  without one cannot be accepted.
+- **Constraints**, **Permitted actions**, **Prohibited actions**.
+- **Dependencies**: Issues that must merge first.
+- **Open questions**: unresolved ambiguities, stated rather than guessed.
+
+**Review findings** carry:
 - **Severity**: high / medium / low / needs-discussion, grounded in a
   documented convention or a clear correctness defect
 - **Location**: file:line where applicable
@@ -151,8 +185,9 @@ Per finding: **Finding**, **Confidence** (high/medium/low), **Source**
   `chore/`), from up-to-date `main`, or from the dependency's branch for a
   stacked unit.
 - Atomic Conventional Commits: `<type>(<scope>): <description>` with a
-  `Refs: #<n>` trailer; `<type>` matches the branch prefix. Code and its
-  tests in the same commit.
+  `Refs: #<n>` trailer. `<type>` is the commit's own change (`test`, `docs`
+  and `ci` commits are normal on a `fix/` branch); the branch prefix names
+  the unit's main type. Code and its tests in the same commit.
 - Never force-push a shared branch. Never merge-then-fix.
 - Implementers: `cd` into your worktree first, never touch files outside it,
   and `git status` before opening a PR.
@@ -164,6 +199,16 @@ again: by running it locally, or on GitHub by requiring CI's checks for the
 exact head. Red and unfixable within your owned files: commit, do not open a
 PR, report the failing checks. A project without `scripts/gate.sh` has not
 been set up for teamflow: stop and report.
+
+## Red/green
+`teamflow-config tdd` is `required` (the default) or `recommended`. For a
+testable change, the implementer writes the test first, runs it, and keeps
+the failing output (the red), then makes it pass (the green). The PR body
+records, per test: its name, the command, the red output, and that it now
+passes. A change that cannot be tested (prose, configuration) says so and
+why. A reviewer re-runs a new test against the base branch's code where it
+can. Missing red/green evidence on a testable change is a `major` under
+`required`, a `minor` under `recommended`.
 
 ## Opening a PR
 ```bash

@@ -23,7 +23,7 @@ boundaries, architectural anti-patterns, and mismatches between the
 stated architecture and the actual structure.
 
 ## For every finding
-`tf issue create --title "..." --body "..." --label severity:<level> --label area:architecture`
+`tf issue create --title '...' --body '...' --label severity:<level> --label area:architecture`
 
 Issue body must include (per the workflow rules, "Issues"):
 - Severity: high / medium / low / needs-discussion

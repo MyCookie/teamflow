@@ -23,7 +23,7 @@ undocumented public APIs, and stale docs that contradict the current
 implementation.
 
 ## For every finding
-`tf issue create --title "..." --body "..." --label severity:<level> --label area:docs`
+`tf issue create --title '...' --body '...' --label severity:<level> --label area:docs`
 
 Issue body must include (per the workflow rules, "Issues"):
 - Severity: high / medium / low / needs-discussion

@@ -74,7 +74,7 @@ When all researchers report back (each by ending its turn; the final message arr
 ## Step 4 — File Issues
 
 For each task, file it with
-`tf issue create --title "..." --body "..." --label type:task --label severity:<level>`
+`tf issue create --title '...' --body '...' --label type:task --label severity:<level>`
 (add a `--label` per relevant `area:*`):
 
 - Title: imperative verb, specific outcome ("Add rate limiting to /api/auth")

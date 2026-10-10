@@ -1,5 +1,6 @@
-# teamflow's own gate, from templates/ci.yml. The runner's python3 and git
-# are all the gate needs.
+# teamflow's own gate, from templates/ci.yml. Besides the runner's python3 and
+# git, the gate needs the claude CLI (installed below from npm) to validate the
+# plugin.
 name: gate
 
 on:

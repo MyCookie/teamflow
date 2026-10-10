@@ -23,7 +23,7 @@ and exposure risk, dependency vulnerabilities, and insecure defaults.
 Check for OWASP Top 10 relevant to this stack.
 
 ## For every finding
-`tf issue create --title "..." --body "..." --label severity:<level> --label area:security`
+`tf issue create --title '...' --body '...' --label severity:<level> --label area:security`
 
 Issue body must include (per the workflow rules, "Issues"):
 - Severity: high / medium / low / needs-discussion

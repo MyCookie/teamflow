@@ -22,7 +22,7 @@ inadequate error handling, unclear logic, dead code, and correctness
 defects. Flag tests that test the wrong thing as well as absent tests.
 
 ## For every finding
-`tf issue create --title "..." --body "..." --label severity:<level> --label area:quality`
+`tf issue create --title '...' --body '...' --label severity:<level> --label area:quality`
 
 Issue body must include (per the workflow rules, "Issues"):
 - Severity: high / medium / low / needs-discussion

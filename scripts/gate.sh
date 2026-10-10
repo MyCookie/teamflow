@@ -67,6 +67,13 @@ step "manifests parse" manifests_parse
 
 step "unit tests" python3 -m unittest discover -s tests
 
+# Agents copy these command shapes. In double quotes the shell runs backtick
+# spans as commands, and Markdown bodies are full of backticks (#9).
+quoting_is_safe() {
+    ! grep -rnE -- '--(body|title) "' agents skills README.md
+}
+step "agent docs single-quote text" quoting_is_safe
+
 # Plugin validation needs the claude CLI (no login). CI installs it, so in CI
 # a missing claude fails the gate rather than skipping a required check.
 missing_claude() {

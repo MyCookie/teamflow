@@ -266,6 +266,18 @@ class LocalFlow(unittest.TestCase):
         self.assertEqual(result.returncode, 2, result.stderr)
         self.assertIn("bare repository", result.stderr)
 
+    def test_tdd_defaults_to_required_and_accepts_only_two_values(self):
+        config = str(Path(TF).parent / "teamflow-config")
+        result = sh(config, "tdd", cwd=self.main)
+        self.assertEqual((result.returncode, result.stdout.strip()), (0, "required"), result.stderr)
+        (self.main / ".claude").mkdir()
+        (self.main / ".claude" / "teamflow.json").write_text(json.dumps({"tdd": "recommended"}))
+        self.assertEqual(sh(config, "tdd", cwd=self.main).stdout.strip(), "recommended")
+        (self.main / ".claude" / "teamflow.json").write_text(json.dumps({"tdd": "optional"}))
+        result = sh(config, "tdd", cwd=self.main)
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("'tdd' must be one of", result.stderr)
+
     def test_bad_config_is_a_setup_problem(self):
         (self.main / ".claude").mkdir()
         (self.main / ".claude" / "teamflow.json").write_text("{not json")

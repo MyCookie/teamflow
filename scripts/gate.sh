@@ -67,10 +67,18 @@ step "manifests parse" manifests_parse
 
 step "unit tests" python3 -m unittest discover -s tests
 
-# claude is not on CI runners; where it is, validate the plugin and marketplace.
+# Plugin validation needs the claude CLI (no login). CI installs it, so in CI
+# a missing claude fails the gate rather than skipping a required check.
+missing_claude() {
+    echo "gate: claude is not installed; CI must install it to validate the plugin" >&2
+    return 1
+}
 if command -v claude >/dev/null 2>&1; then
     step "plugin validates" claude plugin validate --strict .claude-plugin/plugin.json
     step "marketplace validates" claude plugin validate --strict .
+elif [ -n "${CI:-}" ]; then
+    step "plugin validates" missing_claude
+    step "marketplace validates" missing_claude
 else
     results+=("plugin validates|skipped — claude not installed")
     results+=("marketplace validates|skipped — claude not installed")

@@ -401,6 +401,16 @@ class GitHubFlow(unittest.TestCase):
         self.assertIn("not main", self.code(3, "pr", "merge", "2", cwd=self.rev))
         self.assertEqual(self.gh_state()["merges"], [])
 
+    def test_gate_requires_every_required_check_not_only_gate(self):
+        head = self.open_pr()
+        state = self.gh_state()
+        state["checks"][head] = [{"name": "gate", "bucket": "pass"}, {"name": "lint", "bucket": "fail"}]
+        state["required"] = True
+        self.state.write_text(json.dumps(state))
+        result = self.tf("pr", "gate", "2", cwd=self.rev)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("lint: fail", result.stdout)
+
     def test_enforced_repository_uses_auto_merge(self):
         head = self.open_pr()
         self.set_checks(head, "pass", required=True)

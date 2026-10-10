@@ -249,6 +249,15 @@ class LocalFlow(unittest.TestCase):
         (self.main / ".claude" / "teamflow.json").write_text(json.dumps({"forge": "GitHub"}))
         self.assertIn("'forge' must be one of", self.refused("mode", code=2))
 
+    def test_bare_main_checkout_is_named_as_such(self):
+        bare = Path(self.tmp.name) / "bare.git"
+        git("clone", "-q", "--bare", str(self.main), str(bare), cwd=self.main)
+        wt = Path(self.tmp.name) / "wt"
+        git("--git-dir", str(bare), "worktree", "add", "-q", str(wt), "main", cwd=self.main)
+        result = self.tf("mode", cwd=wt)
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("bare repository", result.stderr)
+
     def test_bad_config_is_a_setup_problem(self):
         (self.main / ".claude").mkdir()
         (self.main / ".claude" / "teamflow.json").write_text("{not json")
@@ -400,6 +409,16 @@ class GitHubFlow(unittest.TestCase):
         self.ok("pr", "review", "2", "--verdict", "APPROVE", "--sha", head, "--body", "ok", cwd=self.rev)
         self.assertIn("not main", self.code(3, "pr", "merge", "2", cwd=self.rev))
         self.assertEqual(self.gh_state()["merges"], [])
+
+    def test_gate_requires_every_required_check_not_only_gate(self):
+        head = self.open_pr()
+        state = self.gh_state()
+        state["checks"][head] = [{"name": "gate", "bucket": "pass"}, {"name": "lint", "bucket": "fail"}]
+        state["required"] = True
+        self.state.write_text(json.dumps(state))
+        result = self.tf("pr", "gate", "2", cwd=self.rev)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("lint: fail", result.stdout)
 
     def test_enforced_repository_uses_auto_merge(self):
         head = self.open_pr()

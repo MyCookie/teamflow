@@ -85,6 +85,12 @@ def main():
         fail(".claude/teamflow.json must be a JSON object")
 
     config = merge(DEFAULTS, raw)
+    if "bare" in listing:
+        fail(f"the main checkout ({root}) is a bare repository; teamflow needs a main "
+             f"worktree on {config['base']} to read its config from")
+    # ponytail: `base` comes from the file this check protects, so a main worktree
+    # on branch X whose own config says base X passes. Only a human breaking the
+    # rule gets there, and tf pr merge still refuses a PR that targets the real base.
     if branch != config["base"]:
         fail(f"the main worktree ({root}) must be on {config['base']}, not "
              f"{branch or 'a detached HEAD'}: its config is trusted only there. "

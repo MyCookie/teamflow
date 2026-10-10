@@ -25,5 +25,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # The gate validates the plugin with the claude CLI, which needs no login.
+      # Pinned: bump deliberately, after `claude plugin validate` passes locally.
+      - name: Install the Claude Code CLI
+        run: npm install --global --no-fund --no-audit @anthropic-ai/claude-code@2.1.285
       - name: Run the gate
         run: ./scripts/gate.sh

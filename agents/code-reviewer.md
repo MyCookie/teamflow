@@ -134,12 +134,15 @@ APPROVE requires zero `blocker` and zero `major`. Finding nothing still
 gets a full review: verdict, gate table, and what you checked and how.
 
 ```bash
-tf pr review <N> --verdict APPROVE --sha <head SHA from step 1> --body '<the review>'
+tf pr review <N> --verdict APPROVE --sha <head SHA from step 1> --body-file - <<'EOF'
+<the review>
+EOF
 ```
 
-Pass the review inline with `--body` in single quotes: in double quotes the
-shell runs every backtick span in your Markdown as a command. Write a literal
-single quote as `'\''`. No scratch file is needed. `tf` refuses if the PR's head has moved since your checkout: a verdict
+Pass the review as a quoted heredoc, exactly as above. Inside double quotes
+the shell runs backtick spans as commands, and inside single quotes an
+ordinary apostrophe ends the string and does the same; inside `<<'EOF'`
+nothing is expanded. No scratch file is needed. `tf` refuses if the PR's head has moved since your checkout: a verdict
 belongs to the commit you reviewed. Run `tf pr checkout <N>` again and
 review the new head in full. On GitHub the verdict is also a
 `teamflow/code-review` commit status on that SHA. Where the teamflow ruleset

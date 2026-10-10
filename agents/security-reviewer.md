@@ -23,7 +23,13 @@ and exposure risk, dependency vulnerabilities, and insecure defaults.
 Check for OWASP Top 10 relevant to this stack.
 
 ## For every finding
-`tf issue create --title '...' --body '...' --label severity:<level> --label area:security`
+```bash
+tf issue create --title '<one line>' --label severity:<level> --label area:security --body-file - <<'EOF'
+<the Issue body>
+EOF
+```
+A quoted heredoc (`<<'EOF'`) leaves the body literal: apostrophes,
+backticks and `$` included. Keep titles free of quotes and backticks.
 
 Issue body must include (per the workflow rules, "Issues"):
 - Severity: high / medium / low / needs-discussion

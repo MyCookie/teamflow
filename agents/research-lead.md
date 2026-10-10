@@ -73,9 +73,16 @@ When all researchers report back (each by ending its turn; the final message arr
 
 ## Step 4 — File Issues
 
-For each task, file it with
-`tf issue create --title '...' --body '...' --label type:task --label severity:<level>`
-(add a `--label` per relevant `area:*`):
+For each task, file it with (add a `--label` per relevant `area:*`)
+```bash
+tf issue create --title '<imperative outcome>' --label type:task --label severity:<level> --body-file - <<'EOF'
+<the Issue body>
+EOF
+```
+A quoted heredoc (`<<'EOF'`) leaves the body literal: apostrophes,
+backticks and `$` included. Keep titles free of quotes and backticks.
+
+Each Issue:
 
 - Title: imperative verb, specific outcome ("Add rate limiting to /api/auth")
 - Labels: `type:task`, `severity:<level>`, and any relevant `area:*` labels

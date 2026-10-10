@@ -27,7 +27,13 @@ need. You do not fix anything.
    comments already left in the codebase by prior contributors.
 
 ## For every finding
-`tf issue create --title '...' --body '...' --label severity:<level> --label area:simplicity`
+```bash
+tf issue create --title '<one line>' --label severity:<level> --label area:simplicity --body-file - <<'EOF'
+<the Issue body>
+EOF
+```
+A quoted heredoc (`<<'EOF'`) leaves the body literal: apostrophes,
+backticks and `$` included. Keep titles free of quotes and backticks.
 
 Severity for simplicity findings is based on how much complexity removal
 would improve the codebase — not on risk:

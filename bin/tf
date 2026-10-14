@@ -520,14 +520,22 @@ LABELS = ["severity:high", "severity:medium", "severity:low", "needs-discussion"
           "area:architecture", "area:security", "area:quality", "area:docs", "area:simplicity",
           "area:research", "type:feature", "type:bug", "type:task"]
 IGNORES = [".manager-state.json", ".claude/worktrees/", ".env"]
-RULESET = "teamflow: reviewed and gated"
 
 
 def setup(forge_name, remote, apply):
-    """Apply what a plugin cannot: dry run unless `apply`; never overwrites, never commits."""
+    """Apply what a plugin cannot: dry run unless `apply`; never overwrites, never commits.
+
+    Runs in whichever worktree it is started in, so the setup files can be
+    prepared on a branch and merged through a PR like any other change.
+    """
     root = Path(git("rev-parse", "--show-toplevel"))
-    if str(root) != worktrees()[0][0]:
-        raise Refused(f"run tf setup in the main worktree ({worktrees()[0][0]})")
+    hub = GitHub({"remote": remote}) if forge_name == "github" else None  # check gh and remote before writing
+
+    def load_json(path):
+        try:
+            return json.loads(read_file(path))
+        except ValueError as error:
+            raise SetupError(f"{path.relative_to(root)} is not valid JSON ({error})") from None
 
     def do(message, action):
         print(f"{'' if apply else 'would '}{message}")
@@ -539,7 +547,7 @@ def setup(forge_name, remote, apply):
         path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
     settings = root / ".claude" / "settings.json"
-    current = json.loads(read_file(settings)) if settings.is_file() else {}
+    current = load_json(settings) if settings.is_file() else {}
     if current.get("crossSessionInbound") == "accept":
         print("ok: .claude/settings.json accepts cross-session messages")
     else:
@@ -573,14 +581,13 @@ def setup(forge_name, remote, apply):
     config = root / ".claude" / "teamflow.json"
     wanted = {"forge": forge_name, **({"remote": remote} if forge_name == "github" else {})}
     if config.is_file():
-        existing = json.loads(read_file(config)).get("forge", "local")
+        existing = load_json(config).get("forge", "local")
         print(f"ok: .claude/teamflow.json exists" + ("" if existing == forge_name else
               f"; note: it says forge {existing}, not {forge_name}, left alone"))
     else:
         do(f"create .claude/teamflow.json with {json.dumps(wanted)}", lambda: write_json(config, wanted))
 
-    if forge_name == "github":
-        hub = GitHub({"remote": remote})
+    if hub:
         have = {l["name"] for l in json.loads(hub.gh("label", "list", "--json", "name", "--limit", "200"))}
         for label in (l for l in LABELS if l not in have):
             do(f"create label {label}", lambda label=label: hub.gh("label", "create", label))
@@ -591,14 +598,24 @@ def setup(forge_name, remote, apply):
             do("turn on auto-merge and deletion of merged branches",
                lambda: hub.api("--method", "PATCH", f"repos/{hub.slug}",
                                "-F", "allow_auto_merge=true", "-F", "delete_branch_on_merge=true"))
+        ruleset = load_json(TEMPLATES / "branch-ruleset.json")["name"]
         listed = subprocess.run(["gh", "api", f"repos/{hub.slug}/rulesets"], text=True, capture_output=True)
-        if listed.returncode:
-            print(f"note: rulesets unavailable ({(listed.stderr or listed.stdout).strip()}); "
+        found = listed.stdout + listed.stderr
+        if listed.returncode and ("HTTP 403" in found or "Upgrade to GitHub Pro" in found):
+            print(f"note: rulesets unavailable ({listed.stderr.strip()}); "
                   "github mode will run unenforced, with tf checking the gate and verdict itself")
-        elif any(r.get("name") == RULESET for r in json.loads(listed.stdout or "[]")):
-            print(f"ok: ruleset '{RULESET}' exists")
+        elif listed.returncode:
+            raise RuntimeError(f"listing rulesets failed: {found.strip()}")
+        elif any(r.get("name") == ruleset for r in json.loads(listed.stdout or "[]")):
+            print(f"ok: ruleset '{ruleset}' exists")
+        elif subprocess.run(["gh", "api", f"repos/{hub.slug}/contents/.github/workflows/gate.yml"],
+                            capture_output=True).returncode:
+            # The ruleset requires the CI gate and a review verdict. Created before the gate
+            # workflow is on the default branch, it would block the PR that adds the workflow.
+            print(f"later: ruleset '{ruleset}' waits until .github/workflows/gate.yml is on the "
+                  "default branch; run tf setup --forge github --apply again after the setup PR merges")
         else:
-            do(f"create ruleset '{RULESET}'",
+            do(f"create ruleset '{ruleset}'",
                lambda: hub.api("--method", "POST", f"repos/{hub.slug}/rulesets",
                                "--input", str(TEMPLATES / "branch-ruleset.json")))
 

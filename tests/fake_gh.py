@@ -4,7 +4,9 @@
 State lives in the JSON file $FAKE_GH_STATE. PR heads are read from the bare
 repository $FAKE_GH_BARE, which plays GitHub's copy of the branches.
 $FAKE_GH_LOGGED_OUT makes `gh auth status` fail. "rulesets_forbidden" in the
-state makes the rulesets API answer 403, as on a free private repository.
+state makes the rulesets API answer 403, as on a free private repository;
+"rulesets_error" makes it fail with a 500. "remote_files" lists the paths the
+contents API finds on the default branch.
 """
 
 import json
@@ -128,6 +130,9 @@ def main():
         path = next(a for a in rest + [verb] if a.startswith("repos/"))
         method = opt(args, "--method") or "GET"
         if path.endswith("/rulesets"):
+            if state.get("rulesets_error"):
+                print("gh: Server Error (HTTP 500)", file=sys.stderr)
+                sys.exit(1)
             if state.get("rulesets_forbidden"):
                 print('{"message":"Upgrade to GitHub Pro or make this repository public to enable this feature.","status":"403"}')
                 print("gh: Upgrade to GitHub Pro or make this repository public to enable this feature. (HTTP 403)", file=sys.stderr)
@@ -137,6 +142,13 @@ def main():
                     state.setdefault("rulesets", []).append(json.load(f))
                 save(state)
             print(json.dumps(state.get("rulesets", [])))
+            return
+        if "/contents/" in path:
+            wanted = path.split("/contents/", 1)[1].split("?", 1)[0]
+            if wanted not in state.get("remote_files", []):
+                print("gh: Not Found (HTTP 404)", file=sys.stderr)
+                sys.exit(1)
+            print(json.dumps({"path": wanted}))
             return
         if re.fullmatch(r"repos/[^/]+/[^/]+", path):
             if method == "PATCH":

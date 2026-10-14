@@ -28,10 +28,10 @@ class Setup(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def tf(self, *args, env=None):
-        result = sh(TF, "setup", *args, cwd=self.repo, env=env)
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        return result.stdout
+    def tf(self, *args, env=None, code=0, cwd=None):
+        result = sh(TF, "setup", *args, cwd=cwd or self.repo, env=env)
+        self.assertEqual(result.returncode, code, result.stdout + result.stderr)
+        return result.stdout + result.stderr
 
     def tree(self):
         return sorted(str(p.relative_to(self.repo)) for p in self.repo.rglob("*") if ".git" not in p.parts)
@@ -57,7 +57,27 @@ class Setup(unittest.TestCase):
         self.assertEqual(ignores, [".env", ".manager-state.json", ".claude/worktrees/"])
         self.assertEqual(json.loads((self.repo / ".claude" / "teamflow.json").read_text()), {"forge": "local"})
         self.assertFalse((self.repo / ".github" / "workflows").exists())  # github only
-        self.assertEqual(git("status", "--porcelain", "--untracked-files=no", cwd=self.repo), "")  # never commits
+
+    def test_never_commits(self):
+        head = git("rev-parse", "HEAD", cwd=self.repo)
+        self.tf("--apply")
+        self.assertEqual(git("rev-parse", "HEAD", cwd=self.repo), head)
+        self.assertEqual(git("status", "--porcelain", "--untracked-files=no", cwd=self.repo), "")
+
+    def test_runs_on_a_branch_in_a_linked_worktree(self):
+        # the setup PR is prepared on a branch, away from the main checkout
+        wt = Path(self.tmp.name) / "setup-wt"
+        git("worktree", "add", "-q", "-b", "chore/teamflow-setup", str(wt), cwd=self.repo)
+        self.tf("--apply", cwd=wt)
+        self.assertTrue((wt / "scripts" / "gate.sh").is_file())
+        self.assertFalse((self.repo / "scripts").exists())
+
+    def test_invalid_json_is_a_setup_error_not_a_traceback(self):
+        (self.repo / ".claude").mkdir()
+        (self.repo / ".claude" / "settings.json").write_text("{nope")
+        out = self.tf(code=2)
+        self.assertIn("settings.json is not valid JSON", out)
+        self.assertNotIn("Traceback", out)
 
     def test_second_apply_changes_nothing_and_never_overwrites(self):
         self.tf("--apply")
@@ -91,9 +111,29 @@ class Setup(unittest.TestCase):
     def github_repo(self):
         git("remote", "add", "origin", str(Path(self.tmp.name) / "github.com" / "me" / "repo.git"), cwd=self.repo)
 
+    def test_github_checks_gh_and_remote_before_writing_anything(self):
+        git("remote", "add", "origin", "ssh://git@example.com/me/repo.git", cwd=self.repo)
+        before = self.tree()
+        out = self.tf("--forge", "github", "--apply", env=self.fake_gh_env(), code=2)
+        self.assertIn("not a GitHub repository", out)
+        self.assertEqual(self.tree(), before)
+
+    def test_ruleset_waits_until_the_gate_workflow_is_on_the_base_branch(self):
+        self.github_repo()
+        out = self.tf("--forge", "github", "--apply", env=self.fake_gh_env())
+        self.assertIn("run tf setup --forge github --apply again after", out)
+        self.assertNotIn("rulesets", json.loads(self.state.read_text()))
+
+    def test_a_rulesets_error_other_than_403_is_an_error(self):
+        self.github_repo()
+        out = self.tf("--forge", "github", "--apply", code=1,
+                      env=self.fake_gh_env(rulesets_error=True, remote_files=[".github/workflows/gate.yml"]))
+        self.assertIn("HTTP 500", out)
+        self.assertNotIn("unenforced", out)
+
     def test_github_apply_sets_up_labels_settings_ruleset_and_ci(self):
         self.github_repo()
-        env = self.fake_gh_env()
+        env = self.fake_gh_env(remote_files=[".github/workflows/gate.yml"])
         self.tf("--forge", "github", "--apply", env=env)
         state = json.loads(self.state.read_text())
         self.assertIn("severity:high", state["labels"])
@@ -109,7 +149,8 @@ class Setup(unittest.TestCase):
 
     def test_rulesets_unavailable_is_reported_not_fatal(self):
         self.github_repo()
-        out = self.tf("--forge", "github", "--apply", env=self.fake_gh_env(rulesets_forbidden=True))
+        out = self.tf("--forge", "github", "--apply",
+                      env=self.fake_gh_env(rulesets_forbidden=True, remote_files=[".github/workflows/gate.yml"]))
         self.assertIn("rulesets unavailable", out)
         self.assertNotIn("rulesets", json.loads(self.state.read_text()))
 

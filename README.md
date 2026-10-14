@@ -28,30 +28,40 @@ claude --plugin-dir /path/to/teamflow \
 
 ## Set up a repository
 
-A plugin can't change project settings, so each repository needs:
+A plugin can't change project settings, so `tf setup` applies what it
+can't: cross-session messaging in `.claude/settings.json`, the gate and PR
+template, `.gitignore` entries and `.claude/teamflow.json`; with
+`--forge github` also the CI workflow, labels, repository settings and the
+branch ruleset. It is a dry run unless given `--apply`, never overwrites a
+file, never commits, and is safe to run again. Prepare the setup on a
+branch, like any other change:
 
-1. **Messaging between sessions.** In `.claude/settings.json`:
-   ```json
-   { "crossSessionInbound": "accept" }
-   ```
-2. **The gate.** Copy `templates/gate.sh` to `scripts/gate.sh`, add the
-   project's lint and test steps, and make it green on `main`. Copy
-   `templates/pull_request_template.md` to `.github/`.
-3. **Loop bounds and test-first** (optional). Defaults apply without a
-   file; override any of them in `.claude/teamflow.json`. `tdd` is
-   `required` (default) or `recommended`: how strictly reviewers grade
-   missing red/green evidence.
-   ```json
-   { "tdd": "required",
-     "loop": { "max_iterations": 3, "exit_severity_threshold": "medium",
-               "human_checkpoint": "every_cycle", "max_open_issues_to_continue": 0 } }
-   ```
-   `teamflow-config` prints the effective values. `tf` and
-   `teamflow-config` both read the file from the main worktree, which must
-   stay on the base branch (`tf` stops otherwise), so a PR under review
-   can't change the rules its own review runs under. Work on other branches in separate worktrees.
-4. **Ignore runtime state:** add `.manager-state.json`, `.claude/worktrees/`
-   and `.env` to `.gitignore`.
+```bash
+git worktree add ../myrepo-setup -b chore/teamflow-setup
+cd ../myrepo-setup
+tf setup                      # dry run; add --forge github for GitHub mode
+tf setup --apply
+```
+
+Then add the project's lint and test steps to `scripts/gate.sh`, commit,
+and merge the branch the way you merge today. teamflow's own review flow
+starts once this is on the base branch. The `teamflow:setup` skill walks
+through it and lists the checks that the team works.
+
+**Settings** live in `.claude/teamflow.json`; defaults apply for anything
+unset, and `teamflow-config` prints the effective values:
+
+```json
+{ "forge": "local", "remote": "origin", "base": "main", "tdd": "required",
+  "loop": { "max_iterations": 3, "exit_severity_threshold": "medium",
+            "human_checkpoint": "every_cycle", "max_open_issues_to_continue": 0 } }
+```
+
+`tdd` is `required` or `recommended`: how strictly reviewers grade missing
+red/green evidence. `tf` and `teamflow-config` read the file from the main
+worktree, which must stay on the base branch (`tf` stops otherwise), so a
+PR under review can't change the rules its own review runs under. Work on
+other branches in separate worktrees.
 
 ## Local or GitHub
 
@@ -71,26 +81,16 @@ modes, set by `forge` in `.claude/teamflow.json`:
   private repository on a free plan), `tf` checks them itself and merges:
   the same process control as local mode.
 
-To adopt GitHub mode in a repository:
+To adopt GitHub mode, run `tf setup --forge github` as above. The ruleset
+requires the CI gate, so `tf setup` creates it only once
+`.github/workflows/gate.yml` is on the default branch: after the setup PR
+merges, run `tf setup --forge github --apply` once more from the main
+worktree. Rulesets need a public repository or a paid plan; without them
+`tf setup` says so and GitHub mode runs unenforced.
 
-1. `.claude/teamflow.json`: `{ "forge": "github", "remote": "<the GitHub remote>" }`
-2. Copy `templates/ci.yml` to `.github/workflows/gate.yml`, add the
-   toolchain steps, and get it green on `main`.
-3. Allow auto-merge and delete merged branches:
-   `gh api -X PATCH repos/OWNER/REPO -F allow_auto_merge=true -F delete_branch_on_merge=true`
-4. Apply the ruleset (requires a public repository or a paid plan):
-   `gh api -X POST repos/OWNER/REPO/rulesets --input templates/branch-ruleset.json`
-5. Create the labels; `gh issue create` fails on a missing one:
-   ```bash
-   for l in severity:high severity:medium severity:low \
-            area:architecture area:security area:quality area:docs area:simplicity area:research \
-            type:feature type:bug type:task needs-discussion; do
-     gh label create "$l" 2>/dev/null || true
-   done
-   ```
-6. `tf mode` prints `github`. If `gh` is missing, logged out, or the remote
-   isn't GitHub, every `tf` command stops with exit 2 rather than falling
-   back to local.
+`tf mode` then prints `github`. If `gh` is missing, logged out, or the
+remote isn't GitHub, every `tf` command stops with exit 2 rather than
+falling back to local.
 
 ## Run
 

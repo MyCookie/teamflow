@@ -2,6 +2,7 @@
 """teamflow's one interface to Issues and PRs, local or on GitHub.
 
     tf mode
+    tf setup [--forge local|github] [--remote R] [--apply]   # dry run without --apply
     tf issue create --title T (--body B | --body-file F) [--label L ...]   # F may be - for stdin
     tf issue list [--label L ...]                # open Issues carrying any label
     tf issue view N
@@ -46,6 +47,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 TEMPLATE = ".github/pull_request_template.md"
+TEMPLATES = HERE.parent / "templates"
 STATUS = "teamflow/code-review"
 GATE = "gate"
 
@@ -512,6 +514,117 @@ class GitHub:
         print(self.gh(*args) or f"#{n}: merged")
 
 
+# -- setup -------------------------------------------------------------------
+
+LABELS = ["severity:high", "severity:medium", "severity:low", "needs-discussion",
+          "area:architecture", "area:security", "area:quality", "area:docs", "area:simplicity",
+          "area:research", "type:feature", "type:bug", "type:task"]
+IGNORES = [".manager-state.json", ".claude/worktrees/", ".env"]
+
+
+def setup(forge_name, remote, apply):
+    """Apply what a plugin cannot: dry run unless `apply`; never overwrites, never commits.
+
+    Runs in whichever worktree it is started in, so the setup files can be
+    prepared on a branch and merged through a PR like any other change.
+    """
+    root = Path(git("rev-parse", "--show-toplevel"))
+    hub = GitHub({"remote": remote}) if forge_name == "github" else None  # check gh and remote before writing
+
+    def load_json(path):
+        try:
+            return json.loads(read_file(path))
+        except ValueError as error:
+            raise SetupError(f"{path.relative_to(root)} is not valid JSON ({error})") from None
+
+    def do(message, action):
+        print(f"{'' if apply else 'would '}{message}")
+        if apply:
+            action()
+
+    def write_json(path, data):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+    settings = root / ".claude" / "settings.json"
+    current = load_json(settings) if settings.is_file() else {}
+    if current.get("crossSessionInbound") == "accept":
+        print("ok: .claude/settings.json accepts cross-session messages")
+    else:
+        do("set crossSessionInbound: accept in .claude/settings.json",
+           lambda: write_json(settings, {**current, "crossSessionInbound": "accept"}))
+
+    copies = [("gate.sh", "scripts/gate.sh"), ("pull_request_template.md", ".github/pull_request_template.md")]
+    if forge_name == "github":
+        copies.append(("ci.yml", ".github/workflows/gate.yml"))
+    for source, target in copies:
+        if (root / target).exists():
+            print(f"ok: {target} exists, left alone")
+            continue
+
+        def copy(source=source, target=target):
+            (root / target).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy(TEMPLATES / source, root / target)  # keeps gate.sh executable
+        do(f"create {target} from templates/{source}", copy)
+
+    ignore = root / ".gitignore"
+    present = read_file(ignore).splitlines() if ignore.is_file() else []
+    missing = [line for line in IGNORES if line not in present]
+    if missing:
+        def append():
+            text = read_file(ignore) if ignore.is_file() else ""
+            ignore.write_text(text + ("" if not text or text.endswith("\n") else "\n") + "\n".join(missing) + "\n")
+        do(f"add {', '.join(missing)} to .gitignore", append)
+    else:
+        print("ok: .gitignore covers teamflow's runtime files")
+
+    config = root / ".claude" / "teamflow.json"
+    wanted = {"forge": forge_name, **({"remote": remote} if forge_name == "github" else {})}
+    if config.is_file():
+        existing = load_json(config).get("forge", "local")
+        print(f"ok: .claude/teamflow.json exists" + ("" if existing == forge_name else
+              f"; note: it says forge {existing}, not {forge_name}, left alone"))
+    else:
+        do(f"create .claude/teamflow.json with {json.dumps(wanted)}", lambda: write_json(config, wanted))
+
+    if hub:
+        have = {l["name"] for l in json.loads(hub.gh("label", "list", "--json", "name", "--limit", "200"))}
+        for label in (l for l in LABELS if l not in have):
+            do(f"create label {label}", lambda label=label: hub.gh("label", "create", label))
+        repo = json.loads(hub.api(f"repos/{hub.slug}"))
+        if repo.get("allow_auto_merge") and repo.get("delete_branch_on_merge"):
+            print("ok: auto-merge and branch deletion are on")
+        else:
+            do("turn on auto-merge and deletion of merged branches",
+               lambda: hub.api("--method", "PATCH", f"repos/{hub.slug}",
+                               "-F", "allow_auto_merge=true", "-F", "delete_branch_on_merge=true"))
+        ruleset = load_json(TEMPLATES / "branch-ruleset.json")["name"]
+        listed = subprocess.run(["gh", "api", f"repos/{hub.slug}/rulesets"], text=True, capture_output=True)
+        found = listed.stdout + listed.stderr
+        if listed.returncode and ("HTTP 403" in found or "Upgrade to GitHub Pro" in found):
+            print(f"note: rulesets unavailable ({listed.stderr.strip()}); "
+                  "github mode will run unenforced, with tf checking the gate and verdict itself")
+        elif listed.returncode:
+            raise RuntimeError(f"listing rulesets failed: {found.strip()}")
+        elif any(r.get("name") == ruleset for r in json.loads(listed.stdout or "[]")):
+            print(f"ok: ruleset '{ruleset}' exists")
+        elif subprocess.run(["gh", "api", f"repos/{hub.slug}/contents/.github/workflows/gate.yml"],
+                            capture_output=True).returncode:
+            # The ruleset requires the CI gate and a review verdict. Created before the gate
+            # workflow is on the default branch, it would block the PR that adds the workflow.
+            print(f"later: ruleset '{ruleset}' waits until .github/workflows/gate.yml is on the "
+                  "default branch; run tf setup --forge github --apply again after the setup PR merges")
+        else:
+            do(f"create ruleset '{ruleset}'",
+               lambda: hub.api("--method", "POST", f"repos/{hub.slug}/rulesets",
+                               "--input", str(TEMPLATES / "branch-ruleset.json")))
+
+    if apply:
+        print("next: fill in scripts/gate.sh, then commit these files and merge them to the base branch")
+    else:
+        print("dry run: nothing changed; run again with --apply")
+
+
 # -- CLI ---------------------------------------------------------------------
 
 
@@ -538,6 +651,10 @@ def main():
     p = argparse.ArgumentParser(prog="tf", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="noun", required=True)
     sub.add_parser("mode")
+    s = sub.add_parser("setup")
+    s.add_argument("--forge", choices=["local", "github"], default="local")
+    s.add_argument("--remote", default="origin")
+    s.add_argument("--apply", action="store_true")
 
     issue = sub.add_parser("issue").add_subparsers(dest="verb", required=True)
     c = issue.add_parser("create")
@@ -570,6 +687,8 @@ def main():
 
     a = p.parse_args()
     try:
+        if a.noun == "setup":
+            return setup(a.forge, a.remote, a.apply)
         f = forge()
         if a.noun == "mode":
             print("github" if isinstance(f, GitHub) else "local")

@@ -38,12 +38,18 @@ scope.
   yet open, STOP and report the dependency (your final message).
 
 ## Implementation
-- Follow the workflow rules and the project's CLAUDE.md.
+- Follow the workflow rules, including "Honesty" and "Domain language",
+  and the project's CLAUDE.md.
+- Red/green, one behaviour at a time: write the test first, run it, and
+  keep the command and its failing output (the red); then make it pass (the
+  green). `teamflow-config tdd` says whether this is `required` (default)
+  or `recommended`. Record both in the PR body's Red/green section. A change
+  that cannot be tested says so and why.
 - After each logical change, run the relevant test suite. Do not proceed
   to the next change if tests are failing.
 - Commit atomically: one commit per issue if possible.
   Message: `<type>(<scope>): <short description>` with a `Refs: #<number>`
-  trailer; `<type>` matches your branch prefix.
+  trailer; `<type>` is the commit's own change.
 
 ## Completion
 1. Run `./scripts/gate.sh`. Every check must pass. If it is red and you

@@ -72,9 +72,11 @@ Every report, PR body, review and Issue states only what you observed.
 - **Missing evidence is unresolved.** Treat a claim you cannot trace to a
   command, a file, or a source as open, in your own work and in others'.
 - **Never work around a refusal.** If a permission prompt, a hook, or `tf`
-  refuses something, do not reach the same result another way (a wrapper
-  script, a different tool, an interpreter). Report the check as not
-  verified and say what was refused.
+  refuses an operation, do not perform it another way (a wrapper script, a
+  different tool, an interpreter). Report the check as not verified and say
+  what was refused. Rewording a message so a checker accepts it is not a
+  workaround, as long as what it says stays accurate and complete: a review
+  body may describe a command in words instead of quoting it.
 - **Report failures as failures,** with the output, even when a later step
   passed.
 
@@ -134,7 +136,8 @@ recorded decisions), read them before planning, implementing or reviewing,
 and use the terms as defined there. Reviewers flag a term used against its
 definition. A decision worth keeping (a trade-off, a rejected option, a
 convention) becomes an ADR; the `domain-modeling` skill writes ADRs and
-`CONTEXT.md` entries.
+`CONTEXT.md` entries; it comes from the `mattpocock-skills` plugin, which
+teamflow depends on.
 
 ## Issues
 Labels: `severity:high|medium|low`, `needs-discussion`,

@@ -86,13 +86,17 @@ Each Issue:
 
 - Title: imperative verb, specific outcome ("Add rate limiting to /api/auth")
 - Labels: `type:task`, `severity:<level>`, and any relevant `area:*` labels
-- Body must include:
-  - **What**: the concrete change needed
-  - **Why**: the finding or goal it addresses
+- Body is a typed brief (workflow rules, "Issues"):
+  - **Objective**: the one outcome, and why it matters
+  - **Requirements**: `R1`, `R2`, ... each required or optional
+  - **Acceptance criteria**: `A1`, `A2`, ... each with its **Verification**
+    method (the test, command, or reading that shows it holds)
   - **Scope**: which files or modules are involved (be specific)
-  - **Acceptance criteria**: how to know it's done
-  - **Dependencies**: which other Issues must be completed first (link them)
+  - **Constraints**, **Permitted actions**, **Prohibited actions**
+  - **Dependencies**: which other Issues must merge first (link them)
+  - **Open questions**: ambiguities you could not resolve; never guess
   - **Specialist note**: if a non-generic agent is recommended, say why
+- Use the project's terms as `CONTEXT.md` defines them, when it exists.
 
 ## Step 5 — Report
 

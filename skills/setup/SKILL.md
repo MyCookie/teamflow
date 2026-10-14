@@ -10,7 +10,13 @@ description: >
 # Set up a repository for teamflow
 
 A plugin cannot change project settings, so `tf setup` applies what the
-plugin cannot. Run it from the main worktree, on the base branch.
+plugin cannot. Prepare it on a branch in its own worktree, like any other
+change, so the main worktree stays on the base branch:
+
+```bash
+git worktree add ../<repo>-setup -b chore/teamflow-setup
+cd ../<repo>-setup
+```
 
 ## 1. See the plan
 
@@ -30,8 +36,8 @@ tf setup --forge github --apply
 ```
 
 GitHub mode creates labels, turns on auto-merge and deletion of merged
-branches, and creates the `teamflow: reviewed and gated` ruleset on the
-shared repository. Those are visible to everyone with access: get the
+branches, and (once the CI workflow is on the default branch) creates the
+`teamflow: reviewed and gated` ruleset on the shared repository. Those are visible to everyone with access: get the
 human's explicit go-ahead before running `--apply` with `--forge github`.
 
 `tf setup` never overwrites a file and never commits. Running it again is
@@ -42,11 +48,16 @@ runs unenforced, with `tf` checking the gate and the verdict itself.
 ## 3. Finish by hand
 
 1. Add the project's lint and test steps to `scripts/gate.sh`, and in GitHub
-   mode the toolchain to `.github/workflows/gate.yml`. Make the gate green
-   on the base branch: on a red base every review fails.
-2. Commit the new files on a branch and merge them through a PR. In GitHub
-   mode the ruleset already requires it.
-3. Start the leads (README, "Run").
+   mode the toolchain to `.github/workflows/gate.yml`. Make the gate green:
+   on a red base branch every review fails.
+2. Commit the files on the setup branch and merge it the way the repository
+   merges today (a GitHub PR, or a local merge). This one merge happens
+   before teamflow runs, so it does not go through `tf`.
+3. GitHub mode: the ruleset requires the CI gate, so `tf setup` creates it
+   only once `.github/workflows/gate.yml` is on the default branch; until
+   then it prints `later: ...`. After the setup branch merges, update the
+   main worktree and run `tf setup --forge github --apply` there once more.
+4. Start the leads (README, "Run").
 
 ## 4. Check that it works
 

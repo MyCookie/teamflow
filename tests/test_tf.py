@@ -316,7 +316,8 @@ class GitHubFlow(unittest.TestCase):
         fakebin.mkdir()
         (fakebin / "gh").symlink_to(FAKE_GH)
         self.env = {"PATH": f"{fakebin}{os.pathsep}{os.environ['PATH']}",
-                    "FAKE_GH_STATE": str(self.state), "FAKE_GH_BARE": str(self.bare)}
+                    "FAKE_GH_STATE": str(self.state), "FAKE_GH_BARE": str(self.bare),
+                    "TF_GATE_WAIT": "0", "TF_GATE_POLL": "0.01"}  # no waiting unless a test asks
 
         self.bare.mkdir(parents=True)
         git("init", "-q", "--bare", "-b", "main", cwd=self.bare)
@@ -352,7 +353,14 @@ class GitHubFlow(unittest.TestCase):
     def set_checks(self, sha, bucket, required=False):
         state = self.gh_state()
         state["checks"][sha] = [{"name": "gate", "bucket": bucket}]
+        state.get("check_seq", {}).pop(sha, None)
         state["required"] = required
+        self.state.write_text(json.dumps(state))
+
+    def set_check_seq(self, sha, buckets):
+        """The gate check reads these buckets on successive polls, then keeps the last."""
+        state = self.gh_state()
+        state.setdefault("check_seq", {})[sha] = buckets
         self.state.write_text(json.dumps(state))
 
     def open_pr(self):
@@ -416,6 +424,32 @@ class GitHubFlow(unittest.TestCase):
         merge = self.gh_state()["merges"][-1]
         self.assertFalse(merge["auto"])
         self.assertEqual(merge["subject"], "Merge feat/1-v2: feat: v2")
+        self.assertEqual(self.gh_state()["prs"]["2"]["state"], "MERGED")
+
+    def test_gate_waits_for_pending_checks(self):
+        head = self.open_pr()
+        wait = {"TF_GATE_WAIT": "30", "TF_GATE_POLL": "0.01"}
+
+        self.set_check_seq(head, ["pending", "pending", "pass"])  # A1
+        result = self.tf("pr", "gate", "2", cwd=self.rev, env=wait)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(result.stdout.count("waiting for: gate"), 1)  # announced once, not per poll
+
+        self.set_check_seq(head, ["pending", "fail"])  # A3
+        self.assertEqual(self.tf("pr", "gate", "2", cwd=self.rev, env=wait).returncode, 1)
+
+        self.set_checks(head, "pending")  # A2: still pending at the bound
+        result = self.tf("pr", "gate", "2", cwd=self.rev, env={"TF_GATE_WAIT": "0.1", "TF_GATE_POLL": "0.01"})
+        self.assertEqual(result.returncode, 3, result.stdout + result.stderr)
+        self.assertIn("gate", result.stderr)
+        self.assertIn("did not finish", result.stderr)
+
+    def test_unenforced_merge_waits_for_pending_checks(self):
+        head = self.open_pr()
+        self.ok("pr", "review", "2", "--verdict", "APPROVE", "--sha", head, "--body", "ok", cwd=self.rev)
+        self.set_check_seq(head, ["pending", "pass"])
+        result = self.tf("pr", "merge", "2", cwd=self.rev, env={"TF_GATE_WAIT": "30", "TF_GATE_POLL": "0.01"})
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(self.gh_state()["prs"]["2"]["state"], "MERGED")
 
     def test_merge_refuses_a_rejected_or_merely_claimed_head(self):

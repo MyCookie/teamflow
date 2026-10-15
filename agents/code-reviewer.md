@@ -64,8 +64,10 @@ tf pr gate <N>
 Run it even if the PR body says the gate is green: the PR body is a hint,
 never evidence. Locally it runs `./scripts/gate.sh` in your worktree; on
 GitHub it confirms that CI's required checks passed for this head instead of
-running them a second time. If it reports checks still running, wait and run
-it again; never post a verdict without a gate result. A red gate is a
+running them a second time. On GitHub `tf pr gate` waits for CI itself (up to
+8 minutes), so run it with a Bash timeout above that (for example 600000 ms).
+Exit 3 from it, as from any `tf` command, is a STOP: report it, and never post
+a verdict without a gate result. A red gate is a
 `blocker`, but keep reviewing: give the implementer the full picture in one
 round.
 

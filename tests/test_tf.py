@@ -258,25 +258,18 @@ class LocalFlow(unittest.TestCase):
         self.assertIn("'forge' must be one of", self.refused("mode", code=2))
 
     def test_bare_main_checkout_is_named_as_such(self):
-        bare = Path(self.tmp.name) / "bare.git"
-        git("clone", "-q", "--bare", str(self.main), str(bare), cwd=self.main)
-        wt = Path(self.tmp.name) / "wt"
-        git("--git-dir", str(bare), "worktree", "add", "-q", str(wt), "main", cwd=self.main)
-        result = self.tf("mode", cwd=wt)
-        self.assertEqual(result.returncode, 2, result.stderr)
-        self.assertIn("bare repository", result.stderr)
-
-    def test_bare_main_checkout_does_not_name_a_base_it_cannot_know(self):
-        # Even when a config with another base is readable there, the message names no branch.
+        # The bare dir has no trusted config: a stray, malformed one is never read, and
+        # the message names no branch.
         bare = Path(self.tmp.name) / "bare.git"
         git("clone", "-q", "--bare", str(self.main), str(bare), cwd=self.main)
         (bare / ".claude").mkdir()
-        (bare / ".claude" / "teamflow.json").write_text(json.dumps({"base": "trunk"}))
+        (bare / ".claude" / "teamflow.json").write_text('{"base": "trunk", not json')
         wt = Path(self.tmp.name) / "wt"
         git("--git-dir", str(bare), "worktree", "add", "-q", str(wt), "main", cwd=self.main)
         result = self.tf("mode", cwd=wt)
         self.assertEqual(result.returncode, 2, result.stderr)
         self.assertIn("bare repository", result.stderr)
+        self.assertNotIn("not valid JSON", result.stderr)
         self.assertNotIn("trunk", result.stderr)
         self.assertNotIn("on main", result.stderr)
 

@@ -12,7 +12,8 @@
     {
       "name": "teamflow",
       "source": "./",
-      "description": "A research, implementation and review agent pipeline with an independent per-PR reviewer"
+      "description": "A research, implementation and review agent pipeline with an independent per-PR reviewer",
+      "license": "Apache-2.0"
     }
   ]
 }

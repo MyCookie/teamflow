@@ -6,6 +6,7 @@
     "name": "Ashish Kansara"
   },
   "repository": "https://github.com/MyCookie/teamflow",
+  "license": "Apache-2.0",
   "keywords": [
     "agents",
     "workflow",

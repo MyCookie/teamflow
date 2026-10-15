@@ -6,7 +6,9 @@ repository $FAKE_GH_BARE, which plays GitHub's copy of the branches.
 $FAKE_GH_LOGGED_OUT makes `gh auth status` fail. "rulesets_forbidden" in the
 state makes the rulesets API answer 403, as on a free private repository;
 "rulesets_error" makes it fail with a 500. "remote_files" lists the paths the
-contents API finds on the default branch.
+contents API finds on the default branch. "check_seq" maps a head SHA to a list
+of buckets for the `gate` check: each `pr checks` call reads the first and drops
+it, except the last, which stays.
 """
 
 import json
@@ -112,7 +114,15 @@ def main():
             if "--required" in rest and not state["required"]:
                 print("no required checks reported on the 'x' branch", file=sys.stderr)
                 sys.exit(1)
-            print(json.dumps(state["checks"].get(pr_json(state, rest[0])["headRefOid"], [])))
+            sha = pr_json(state, rest[0])["headRefOid"]
+            seq = state.get("check_seq", {}).get(sha)
+            if seq:
+                if len(seq) > 1:
+                    state["check_seq"][sha] = seq[1:]
+                    save(state)
+                print(json.dumps([{"name": "gate", "bucket": seq[0]}]))
+            else:
+                print(json.dumps(state["checks"].get(sha, [])))
         elif verb == "review":
             state["reviews"].append({"pr": rest[0], "body": opt(rest, "--body")})
             save(state)

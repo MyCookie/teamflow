@@ -128,7 +128,8 @@ or to raw `git`/`gh` to get around it: report it.
 from forks cannot be reviewed.
 
 Exit codes: 0 ok, 1 error, 2 setup or usage problem, 3 refused because of PR state
-(claimed, moved head, no approval). Exit 3 is a STOP, not a retry signal.
+(claimed, moved head, no approval, or CI still running after `tf pr gate`'s
+wait). Exit 3 is a STOP, not a retry signal.
 
 ## Domain language
 When the project has `CONTEXT.md` (its glossary) or `docs/adr/` (its

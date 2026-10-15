@@ -266,6 +266,20 @@ class LocalFlow(unittest.TestCase):
         self.assertEqual(result.returncode, 2, result.stderr)
         self.assertIn("bare repository", result.stderr)
 
+    def test_bare_main_checkout_does_not_name_a_base_it_cannot_know(self):
+        # Even when a config with another base is readable there, the message names no branch.
+        bare = Path(self.tmp.name) / "bare.git"
+        git("clone", "-q", "--bare", str(self.main), str(bare), cwd=self.main)
+        (bare / ".claude").mkdir()
+        (bare / ".claude" / "teamflow.json").write_text(json.dumps({"base": "trunk"}))
+        wt = Path(self.tmp.name) / "wt"
+        git("--git-dir", str(bare), "worktree", "add", "-q", str(wt), "main", cwd=self.main)
+        result = self.tf("mode", cwd=wt)
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("bare repository", result.stderr)
+        self.assertNotIn("trunk", result.stderr)
+        self.assertNotIn("on main", result.stderr)
+
     def test_tdd_defaults_to_required_and_accepts_only_two_values(self):
         config = str(Path(TF).parent / "teamflow-config")
         result = sh(config, "tdd", cwd=self.main)

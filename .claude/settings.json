@@ -1,0 +1,8 @@
+{
+  "enabledPlugins": {
+    "teamflow@teamflow": true,
+    "ponytail@ponytail": true,
+    "mattpocock-skills@mattpocock": true
+  },
+  "crossSessionInbound": "accept"
+}

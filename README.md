@@ -119,3 +119,7 @@ it; leads load it as their first step.
 
 `bin/` is on the shell `PATH` while the plugin is enabled, for leads and
 subagents alike.
+
+## License
+
+Copyright 2026 Ashish Kansara. Licensed under the Apache License, Version 2.0; see [LICENSE](LICENSE).

@@ -393,7 +393,7 @@ class GitHubFlow(unittest.TestCase):
         self.assertIn("error", self.ok("pr", "view", "2"))  # abandoned claim
         self.ok("pr", "claim", "2")
 
-        self.assertEqual(self.tf("pr", "gate", "2", cwd=self.rev, env={"TF_GATE_WAIT": "0.1", "TF_GATE_POLL": "0.01"}).returncode, 2)  # no gate check at all
+        self.code(2, "pr", "gate", "2", cwd=self.rev)  # no gate check at all
         self.set_checks(head, "pending")
         self.code(3, "pr", "gate", "2", cwd=self.rev)
         self.set_checks(head, "fail")

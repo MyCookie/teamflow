@@ -44,6 +44,17 @@ author's say-so.**
   closes, each PR's final code-reviewer verdict. Manager → @review-lead:
   "diff-review mode. Review PRs: [list]. File new Issues for anything that
   needs fixing."
+- **Release (end of Implementation).** A merged change reaches the agents
+  only after a version bump in `.claude-plugin/plugin.json` and the human's
+  `claude plugin update`, then a full restart of every session
+  (`/reload-plugins` is untested for subagent definitions). When a batch's
+  merged PRs touched a shipped path (`agents/`, `skills/`, `bin/`, `hooks/`,
+  `templates/`, `.claude-plugin/`), impl-lead adds a final release unit that
+  changes only the version string. impl-lead names the release PR and the
+  version in its report to @manager, or says "no release: no shipped path
+  changed". Agents never run the update: it changes the human's install.
+  The manager asks the human to run it, restart, and confirm (or skip)
+  before the review phase. See the README, "Release".
 - **Review → Implementation (loop).** Manager checks the loop bounds; if
   continuing, sends @impl-lead the new Issue list; if stopping, reports to
   the human.
@@ -187,7 +198,8 @@ Per finding: **Finding**, **Confidence** (high/medium/low), **Source**
 - Never commit to `main`. One branch per unit, named
   `<type>/<issue-number>-<slug>` (`feat/`, `fix/`, `docs/`, `refactor/`,
   `chore/`), from up-to-date `main`, or from the dependency's branch for a
-  stacked unit.
+  stacked unit. A release unit is `chore/<lowest Issue number in the
+  batch>-release-<version>`, with a `Refs:` trailer per Issue in the batch.
 - Atomic Conventional Commits: `<type>(<scope>): <description>` with a
   `Refs: #<n>` trailer. `<type>` is the commit's own change (`test`, `docs`
   and `ci` commits are normal on a `fix/` branch); the branch prefix names

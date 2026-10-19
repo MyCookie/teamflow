@@ -81,7 +81,14 @@ Write the decision and goal to .manager-state.json before proceeding.
 7. When @impl-lead reports: record the PRs and their verdicts in
    .manager-state.json. Each PR has been through code-reviewer rounds and
    merged, or was escalated; relay any escalation to the human.
-   Increment iteration counter. Proceed to Phase 3.
+   Increment iteration counter.
+   If impl-lead reports a release, ask the human to run
+   `claude plugin update teamflow@teamflow --scope project` and then fully
+   restart every teamflow session (`/reload-plugins` is untested for
+   subagent definitions). You do not run the update. Record the version in
+   .manager-state.json and wait for the human to confirm or explicitly skip
+   before Phase 3, so the review runs on the code it reviews. Then proceed to
+   Phase 3.
 
 ---
 
@@ -140,6 +147,8 @@ Evaluate termination conditions in this order (first match wins):
 Report to the human:
 - Total iterations completed
 - Total PRs opened and merged
+- The released version, plus any merged shipped-path changes not yet
+  released (or whose update the human skipped)
 - Remaining open Issues (count + links)
 - Whether the loop ended clean or hit a bound
 - Suggest next steps if Issues remain

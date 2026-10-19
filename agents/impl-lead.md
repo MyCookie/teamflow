@@ -36,8 +36,19 @@ with `--agent` does not get its `skills:` preloaded.
    Check the Issue body for "Dependencies" fields filed by the research team.
 5. Note any Issue that recommends a specialist agent — flag this in the
    plan for the human to review.
-6. Produce a plan table: unit | issue(s) | files owned | depends on | agent type
-7. Show this plan to the human. Wait for explicit approval before
+6. Release unit: if the batch will touch any shipped path (`agents/`,
+   `skills/`, `bin/`, `hooks/`, `templates/`, `.claude-plugin/`), add a final
+   unit that depends on all the others and changes only the `version` in
+   `.claude-plugin/plugin.json`, on branch
+   `chore/<lowest Issue number in the batch>-release-<version>`, with a
+   `Refs:` trailer for each Issue in the batch. Bump the minor version
+   (0.x.0) when a release changes a contract agents rely on (a `tf` exit
+   code, command, flag or output an agent prompt depends on; a workflow
+   rule; an agent's steps), the patch version otherwise. Skip it if the
+   batch is itself the release (it already carries the bump). It is
+   reviewed and merged like any PR.
+7. Produce a plan table: unit | issue(s) | files owned | depends on | agent type
+8. Show this plan to the human. Wait for explicit approval before
    spawning any teammates.
 
 ## Worktree setup (after plan is approved)
@@ -81,7 +92,9 @@ idle-notification result or a `[Subagent hand-back]`. Answer it with
    handoff for it. A PR is done when its `code-reviewer` round ends in
    `APPROVE` and a merge, not when it is opened.
 2. Message @manager: the PRs, the Issues each closes, each PR's final
-   verdict, any that failed or were escalated.
+   verdict, any that failed or were escalated. Name the release PR and the
+   new version, or say "no release: no shipped path changed". Spawn the
+   release unit only once the other units have merged.
 3. Clean up per the workflow rules, "Cleanup".
 
 ## Review handoff (you own per-PR review rounds)

@@ -64,8 +64,9 @@ tf pr gate <N>
 Run it even if the PR body says the gate is green: the PR body is a hint,
 never evidence. Locally it runs `./scripts/gate.sh` in your worktree; on
 GitHub it confirms that CI's required checks passed for this head instead of
-running them a second time. On GitHub `tf pr gate` waits for CI itself (up to
-8 minutes), so run it with a Bash timeout above that (for example 600000 ms).
+running them a second time. On GitHub `tf pr gate` waits for CI itself (by
+default up to 8 minutes, set by `TF_GATE_WAIT`), so run it with a Bash timeout
+above that (for example 600000 ms).
 Exit 3 from it, as from any `tf` command, is a STOP: report it, and never post
 a verdict without a gate result. A red gate is a
 `blocker`, but keep reviewing: give the implementer the full picture in one
@@ -185,7 +186,8 @@ is for its current head. Locally it merges into the base branch with a
 `Reviewed-by:` trailer and closes the Issues the PR body closes; it never
 pushes. On GitHub with a ruleset it enables auto-merge, and GitHub merges
 once every required check passes; without one, `tf` checks the CI `gate`
-check and your verdict itself, then merges. Either way the merge is pinned
+check and your verdict itself, then merges, and in that case it waits for
+pending CI like `tf pr gate`, so give it the same long Bash timeout. Either way the merge is pinned
 to the head you approved. A refusal is a STOP: report it, do not work around
 it. Never reach for `--admin`, a direct `git push`, or a self-approval. On
 `REQUEST_CHANGES`, merge nothing and leave the branch alone.

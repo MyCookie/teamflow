@@ -117,7 +117,7 @@ branches happens in separate worktrees.
 | One reviewer per PR | `tf pr claim`: a lock | `tf pr claim`: a pending `teamflow/code-review` status on the head |
 | Gate at review | The reviewer runs `scripts/gate.sh` (`tf pr gate`) | CI's required checks on the head (`tf pr gate`); no second local run |
 | Verdict | Recorded against the reviewed head SHA | A PR comment plus a `teamflow/code-review` status on that SHA |
-| Merge | `tf pr merge` merges into the base branch; nothing is pushed | With a ruleset, `tf pr merge` enables auto-merge and GitHub merges once required checks pass; without one, `tf` checks the CI `gate` check and the verdict itself, then merges |
+| Merge | `tf pr merge` merges into the base branch; nothing is pushed | With a ruleset, `tf pr merge` enables auto-merge and GitHub merges once required checks pass; without one, `tf` checks the CI `gate` check and the verdict itself, then merges (waiting for pending CI like `tf pr gate`, so it needs the same long Bash timeout) |
 | Stacked PR after its dependency merges | `tf` retargets it to the base branch | GitHub retargets it, because adoption deletes merged branches (`delete_branch_on_merge`); without that it stays on the old base |
 
 A repository that adopted `github` but lacks `gh`, its login, or a GitHub

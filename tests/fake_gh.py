@@ -10,9 +10,10 @@ contents API finds on the default branch. "check_seq" maps a head SHA to a list
 of buckets for the `gate` check: each `pr checks` call reads the first and drops
 it, except the last, which stays. A bucket of "empty" answers with no checks, and
 "error" fails the call with an HTTP 502. "required_errors" is a count of
-`pr checks --required` calls that fail that way before the rest answer. As real
-gh does, a `pr checks` answer that holds a pending check exits 8 (`gh pr checks
---help`: "8: Checks pending"); the JSON is still printed.
+`pr checks --required` calls that fail that way before the rest answer. A `pr checks`
+answer that holds a pending check exits 8, which `gh pr checks --help` documents as
+"8: Checks pending". The help does not say what `--json` prints or exits with, so that
+the JSON is still printed alongside exit 8 is unverified; it is what this fake does.
 """
 
 import json

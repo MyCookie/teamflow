@@ -35,6 +35,8 @@ The mode comes from `forge` in .claude/teamflow.json (see teamflow-config):
 `tf pr gate` (and an unenforced `tf pr merge`) waits for pending CI checks,
 polling every TF_GATE_POLL seconds (default 15) for up to TF_GATE_WAIT seconds
 (default 480, under the Bash tool's 10-minute ceiling), then reports the result.
+A failed poll or an empty check list is retried the same way. TF_GATE_WAIT must be
+a finite number >= 0 and TF_GATE_POLL a finite number > 0, else exit 2.
 
 Exit codes: 0 ok, 1 error, 2 setup or usage problem, 3 refused because of PR
 state (claimed, moved head, no approval, or CI still running after tf pr
@@ -44,6 +46,7 @@ gate's wait). Exit 3 is a STOP, not a retry signal.
 import argparse
 import datetime
 import json
+import math
 import os
 import re
 import shutil
@@ -476,9 +479,23 @@ class GitHub:
         print(f"#{n}: released")
 
     def checks(self, n, required):
+        """The PR's checks, without our own status. A failed gh call raises RuntimeError.
+
+        gh exits 8 while checks are pending (`gh pr checks --help`), so the exit code alone does
+        not say the call failed: stdout that parses as a JSON list is the answer. Without one,
+        only gh's "no [required] checks reported" means none; anything else is a failure.
+        """
         args = ["gh", "pr", "checks", str(n), "-R", self.slug, "--json", "name,bucket"]
         result = subprocess.run(args + (["--required"] if required else []), text=True, capture_output=True)
-        return [c for c in json.loads(result.stdout or "[]") if c["name"] != STATUS]
+        try:
+            data = json.loads(result.stdout)
+        except ValueError:
+            data = None
+        if not isinstance(data, list):
+            if "checks reported" in result.stderr:
+                return []
+            raise RuntimeError(f"gh pr checks failed ({result.returncode}): {(result.stderr or result.stdout).strip()}")
+        return [c for c in data if c["name"] != STATUS]
 
     def enforced(self, n):
         """A ruleset makes checks required; then GitHub, not tf, enforces the merge."""
@@ -487,25 +504,34 @@ class GitHub:
     def pr_gate(self, n):
         """CI replaces the reviewer's local run: the required checks, or else the `gate` check, must pass.
 
-        Pending checks are polled until none are left or TF_GATE_WAIT seconds pass.
+        Pending checks, a failed poll and a still-empty list are retried until TF_GATE_WAIT
+        seconds pass.
         """
         try:
             wait, poll = (float(os.environ.get(k, d)) for k, d in (("TF_GATE_WAIT", 480), ("TF_GATE_POLL", 15)))
         except ValueError:
-            raise SetupError("TF_GATE_WAIT and TF_GATE_POLL must be numbers of seconds") from None
+            wait = poll = math.nan
+        if not (math.isfinite(wait) and math.isfinite(poll) and wait >= 0 and poll > 0):
+            raise SetupError("TF_GATE_WAIT must be a number of seconds >= 0 and TF_GATE_POLL one > 0")
         deadline, announced = time.monotonic() + wait, False
         while True:
-            checks = self.checks(n, required=True) or [c for c in self.checks(n, required=False) if c["name"] == GATE]
-            if not checks:
-                raise SetupError(f"#{n} has no `{GATE}` check; add templates/ci.yml as .github/workflows/gate.yml")
-            pending = [c["name"] for c in checks if c["bucket"] == "pending"]
+            error = None
+            try:
+                checks = self.checks(n, required=True) or [c for c in self.checks(n, required=False) if c["name"] == GATE]
+            except RuntimeError as e:
+                checks, error = [], e  # transient: never fall back to `gate` alone on a failed --required query
             left = deadline - time.monotonic()
-            if not pending or left <= 0:
+            pending = [c["name"] for c in checks if c["bucket"] == "pending"]
+            if checks and not pending or left <= 0:
                 break
-            if not announced:
+            if not announced and pending:
                 print(f"waiting for: {', '.join(pending)}", flush=True)
                 announced = True
             time.sleep(min(poll, left))
+        if error:
+            raise error
+        if not checks:
+            raise SetupError(f"#{n} has no `{GATE}` check; add templates/ci.yml as .github/workflows/gate.yml")
         for c in checks:
             print(f"{c['name']}: {c['bucket']}")
         if pending:

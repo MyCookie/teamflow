@@ -444,6 +444,46 @@ class GitHubFlow(unittest.TestCase):
         self.assertIn("gate", result.stderr)
         self.assertIn("did not finish", result.stderr)
 
+    def test_gate_retries_a_failed_or_empty_poll(self):
+        head = self.open_pr()
+        wait = {"TF_GATE_WAIT": "30", "TF_GATE_POLL": "0.01"}
+        for seq in (["pending", "error", "pending", "pass"], ["empty", "pending", "pass"], ["error", "pass"]):
+            self.set_check_seq(head, seq)  # a 502 or a not-yet-registered check run, then CI finishes
+            result = self.tf("pr", "gate", "2", cwd=self.rev, env=wait)
+            self.assertEqual(result.returncode, 0, f"{seq}: {result.stdout}{result.stderr}")
+
+        # a transient failure of the --required query must not narrow the poll to `gate` alone
+        state = self.gh_state()
+        state["checks"][head] = [{"name": "gate", "bucket": "pass"}, {"name": "lint", "bucket": "fail"}]
+        state["check_seq"].pop(head)
+        state["required"], state["required_errors"] = True, 1
+        self.state.write_text(json.dumps(state))
+        result = self.tf("pr", "gate", "2", cwd=self.rev, env=wait)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("lint: fail", result.stdout)
+
+        # still failing or empty at the bound: the failure, or no gate check, is reported
+        bound = {"TF_GATE_WAIT": "0.1", "TF_GATE_POLL": "0.01"}
+        self.set_check_seq(head, ["error"])
+        result = self.tf("pr", "gate", "2", cwd=self.rev, env=bound)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("502", result.stderr)
+        self.set_check_seq(head, ["empty"])
+        result = self.tf("pr", "gate", "2", cwd=self.rev, env=bound)
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("no `gate` check", result.stderr)
+
+    def test_gate_rejects_wait_settings_that_would_crash_or_hang(self):
+        head = self.open_pr()
+        self.set_check_seq(head, ["pending", "pass"])
+        for env in ({"TF_GATE_WAIT": "abc"}, {"TF_GATE_POLL": "-1"}, {"TF_GATE_POLL": "0"}, {"TF_GATE_POLL": "nan"},
+                    {"TF_GATE_WAIT": "nan"}, {"TF_GATE_WAIT": "-1"}, {"TF_GATE_WAIT": "inf"}, {"TF_GATE_POLL": "inf"}):
+            result = self.tf("pr", "gate", "2", cwd=self.rev, env={"TF_GATE_WAIT": "30", "TF_GATE_POLL": "0.01", **env})
+            self.assertEqual(result.returncode, 2, f"{env}: {result.stdout}{result.stderr}")
+            self.assertIn("TF_GATE_WAIT", result.stderr)
+        env = {"TF_GATE_WAIT": "0", "TF_GATE_POLL": "0.01"}  # 0 is a valid wait: poll once
+        self.assertEqual(self.tf("pr", "gate", "2", cwd=self.rev, env=env).returncode, 3)
+
     def test_unenforced_merge_waits_for_pending_checks(self):
         head = self.open_pr()
         self.ok("pr", "review", "2", "--verdict", "APPROVE", "--sha", head, "--body", "ok", cwd=self.rev)

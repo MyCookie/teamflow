@@ -8,7 +8,12 @@ state makes the rulesets API answer 403, as on a free private repository;
 "rulesets_error" makes it fail with a 500. "remote_files" lists the paths the
 contents API finds on the default branch. "check_seq" maps a head SHA to a list
 of buckets for the `gate` check: each `pr checks` call reads the first and drops
-it, except the last, which stays.
+it, except the last, which stays. A bucket of "empty" answers with no checks, and
+"error" fails the call with an HTTP 502. "required_errors" is a count of
+`pr checks --required` calls that fail that way before the rest answer. A `pr checks`
+answer that holds a pending check exits 8, which `gh pr checks --help` documents as
+"8: Checks pending". The help does not say what `--json` prints or exits with, so that
+the JSON is still printed alongside exit 8 is unverified; it is what this fake does.
 """
 
 import json
@@ -111,6 +116,11 @@ def main():
         elif verb == "view":
             print(json.dumps(pr_json(state, rest[0])))
         elif verb == "checks":
+            if "--required" in rest and state.get("required_errors", 0) > 0:
+                state["required_errors"] -= 1
+                save(state)
+                print("gh: HTTP 502", file=sys.stderr)
+                sys.exit(1)
             if "--required" in rest and not state["required"]:
                 print("no required checks reported on the 'x' branch", file=sys.stderr)
                 sys.exit(1)
@@ -120,9 +130,14 @@ def main():
                 if len(seq) > 1:
                     state["check_seq"][sha] = seq[1:]
                     save(state)
-                print(json.dumps([{"name": "gate", "bucket": seq[0]}]))
+                if seq[0] == "error":
+                    print("gh: HTTP 502", file=sys.stderr)
+                    sys.exit(1)
+                checks = [] if seq[0] == "empty" else [{"name": "gate", "bucket": seq[0]}]
             else:
-                print(json.dumps(state["checks"].get(sha, [])))
+                checks = state["checks"].get(sha, [])
+            print(json.dumps(checks))
+            sys.exit(8 if any(c["bucket"] == "pending" for c in checks) else 0)
         elif verb == "review":
             state["reviews"].append({"pr": rest[0], "body": opt(rest, "--body")})
             save(state)

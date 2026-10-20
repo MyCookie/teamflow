@@ -102,6 +102,8 @@ Each Issue:
 
 Open one tracking Issue summarising: total Issue count, dependency order,
 recommended implementation sequence, and any open questions that remain.
+Give it no `severity:`, `area:` or `type:` label: it is a report, not work.
+Do not close it; @manager closes it once the report is recorded.
 
 Message @manager: tracking Issue number, total count, and recommended
 priority order.

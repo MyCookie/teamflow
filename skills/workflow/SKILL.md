@@ -44,21 +44,44 @@ author's say-so.**
   closes, each PR's final code-reviewer verdict. Manager → @review-lead:
   "diff-review mode. Review PRs: [list]. File new Issues for anything that
   needs fixing."
-- **Release (end of Implementation).** A merged change reaches the agents
-  only after a version bump in `.claude-plugin/plugin.json` and the human's
-  `claude plugin update`, then a full restart of every session
-  (`/reload-plugins` is untested for subagent definitions). When a batch's
-  merged PRs touched a shipped path (`agents/`, `skills/`, `bin/`, `hooks/`,
-  `templates/`, `.claude-plugin/`), impl-lead adds a final release unit that
-  changes only the version string, unless the batch already carries the bump.
-  The release unit is branched from up-to-date `main` after every other unit
-  has merged, and is reviewed and merged before impl-lead reports. impl-lead
-  ends its report to @manager with one release line: "Release: <version>,
-  merged in PR #N", "Release: <version>, carried by PR #N" (the batch carries
-  the bump), or "No release: no shipped path changed". Agents never run the
-  update: it changes the human's install. Whenever the line names a version,
-  the manager asks the human to run it, restart, and confirm (or skip)
-  before the review phase. See the README, "Release".
+- **Release (end of Implementation).** The one statement of the release
+  rule: the README ("Release") and the agent prompts point here.
+  - *Why.* A merged change reaches the agents only after a version bump in
+    `.claude-plugin/plugin.json`, the human's update, and a full restart of
+    every session (`/reload-plugins` is untested for subagent definitions).
+  - *Trigger.* A unit of the batch touches a shipped path (`agents/`,
+    `skills/`, `bin/`, `hooks/`, `templates/`, `.claude-plugin/`). impl-lead
+    decides at planning and checks again before it reports. The batch gets
+    exactly one bump, because parallel units would otherwise all edit the
+    same line. Normally that is a final release unit that changes only the
+    `version` string, on branch `chore/<lowest Issue number in the batch>-release-<version>`
+    with a `Refs:` trailer per Issue in the batch. If a unit of the batch already bumps
+    `version`, that unit carries the bump and there is no release unit.
+  - *Bump.* Minor (0.x.0) when a release changes a contract agents rely on
+    (a `tf` exit code, command, flag or output an agent prompt depends on; a
+    workflow rule; an agent's steps), patch otherwise.
+  - *Sequencing.* "Merged" means `tf pr view <N>` shows the PR merged; a
+    queued auto-merge is not merged. The release unit is branched from
+    up-to-date `main` (never stacked) after every other unit has merged, then
+    reviewed and merged like any PR, all before impl-lead reports. On GitHub
+    units merge remotely, so impl-lead first fast-forwards the main worktree
+    (`git pull --ff-only` there); locally `tf pr merge` has already updated
+    `main`. The version to bump from, and the version to report, is
+    `version` in `.claude-plugin/plugin.json` on up-to-date `main`, read after
+    the bumping PR has merged.
+  - *Unmerged.* If any unit, the release PR or the carrying PR is escalated
+    or stays unmerged, impl-lead does not hold the report: it spawns no
+    release unit and reports at once. Merged shipped-path changes wait for
+    the next release.
+  - *Release line.* impl-lead ends its report to @manager with exactly one of:
+    "Release: <version>, merged in PR #N" (the release unit),
+    "Release: <version>, carried by PR #N" (the carrying PR, merged),
+    "No release: PR #N unmerged" (the unmerged PR that stopped it), or
+    "No release: no shipped path changed".
+  - *Update.* Whenever the line names a version, the manager asks the human to
+    run `claude plugin update teamflow@teamflow --scope project`, restart
+    every teamflow session, and confirm or skip before the review phase.
+    Agents never run the update: it changes the human's install.
 - **Review → Implementation (loop).** Manager checks the loop bounds; if
   continuing, sends @impl-lead the new Issue list; if stopping, reports to
   the human.
@@ -206,8 +229,7 @@ Per finding: **Finding**, **Confidence** (high/medium/low), **Source**
 - Never commit to `main`. One branch per unit, named
   `<type>/<issue-number>-<slug>` (`feat/`, `fix/`, `docs/`, `refactor/`,
   `chore/`), from up-to-date `main`, or from the dependency's branch for a
-  stacked unit. A release unit is `chore/<lowest Issue number in the
-  batch>-release-<version>`, with a `Refs:` trailer per Issue in the batch.
+  stacked unit. A release unit's branch is named under Handoffs, Release.
 - Atomic Conventional Commits: `<type>(<scope>): <description>` with a
   `Refs: #<n>` trailer. `<type>` is the commit's own change (`test`, `docs`
   and `ci` commits are normal on a `fix/` branch); the branch prefix names

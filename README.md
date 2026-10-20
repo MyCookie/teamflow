@@ -123,40 +123,39 @@ subagents alike.
 ## Release
 
 A merged change reaches the agents only after a release. Sessions run the
-installed copy under `~/.claude/plugins/cache/`, not the repository, and
-nothing moves that copy forward on its own.
+installed copy under `~/.claude/plugins/cache/`, not the repository. With
+marketplace auto-update off, as on the maintainer's install (their answer to
+#33, Q4), nothing moves that copy forward on its own; whether it is on by
+default for a marketplace is not verified here, and with it on, a version
+bump would arrive without `claude plugin update`.
+
+The release rule itself (when a release is needed, the bump, the branch,
+the sequencing, the release line and what the manager asks of you) is stated
+once, in [`skills/workflow/SKILL.md`](skills/workflow/SKILL.md), Handoffs,
+"Release". What follows is only what a human needs.
 
 - **Where the version lives.** `version` in `.claude-plugin/plugin.json`,
   and nowhere else. The marketplace entry carries none; the manifest's
-  version overrides the entry's.
+  version overrides the entry's (Claude Code docs, plugins-reference.md,
+  "Metadata precedence", as quoted in #33; not re-checked here).
 - **Why it stays.** With a `version` in the manifest, Claude Code keeps every
-  user on the cached copy until the string changes. Leaving it out would use
-  the commit SHA instead, but `claude plugin validate --strict` (part of
-  `./scripts/gate.sh`) fails with "No version specified" without it.
-- **Bump rule (0.x).** Minor (0.x.0) when a release changes a contract agents
-  rely on: a `tf` exit code, command, flag or output an agent prompt depends
-  on, a workflow rule, or an agent's steps. Patch for everything else.
-- **When and who.** One bump per batch, in a release PR of its own (or
-  carried by a unit of the batch), because parallel units would all edit the
-  same line. When a batch touched a
-  shipped path (`agents/`, `skills/`, `bin/`, `hooks/`, `templates/`,
-  `.claude-plugin/`), impl-lead adds a final unit that changes only the
-  version, on branch `chore/<lowest Issue number>-release-<version>`, unless
-  the batch already carries the bump. It is branched from up-to-date `main`
-  after every other unit has merged (it is never stacked), then reviewed,
-  gated and merged like any PR, all before impl-lead reports to the manager
-  with a release line: "Release: <version>, merged in PR #N", "Release:
-  <version>, carried by PR #N", or "No release: no shipped path changed".
-- **Reaching the agents.** When that line names a version, the human runs
-  `claude plugin update teamflow@teamflow --scope project`, then fully
-  restarts every teamflow session. Agents do not run the update: it changes
-  the human's install outside the repository. The manager waits for the
-  human to confirm, or to skip, before the review phase.
+  user on the cached copy until the string changes (docs, plugins/loading.md,
+  "Versions and updates", as quoted in #33). Leaving it out would use the
+  commit SHA instead, but on a scratch copy without it, `claude plugin
+  validate --strict` (part of `./scripts/gate.sh`) failed with "version: No
+  version specified" (research-lead's run for #33; not re-run here).
+- **Reaching the agents.** When the manager reports a release, run the
+  update command it gives you, then fully restart every teamflow session.
+  Agents do not run the update: it changes your install outside the
+  repository. The manager waits for you to confirm, or to skip, before the
+  review phase.
 - **Not tested.** The update command's behaviour (it refreshes the
   marketplace and installs the new copy when the version changed) is taken
   from the Claude Code docs, not run here. Whether `/reload-plugins`
   refreshes subagent definitions is untested, so a full restart is required.
-  Marketplace auto-update is off.
+  The release sequencing, the four release-line forms, the manager's check of
+  the line and the main-worktree update step have not been run by a live
+  impl-lead and manager.
 
 No tag, changelog or extra gate step is needed; `git log` is the record.
 

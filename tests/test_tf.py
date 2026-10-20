@@ -494,6 +494,37 @@ class GitHubFlow(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(self.gh_state()["prs"]["2"]["state"], "MERGED")
 
+    def test_merge_treats_unreadable_ci_as_a_stop_not_an_error(self):
+        head = self.open_pr()
+        self.set_checks(head, "pass", required=True)
+        self.ok("pr", "review", "2", "--verdict", "APPROVE", "--sha", head, "--body", "ok", cwd=self.rev)
+        wait = {"TF_GATE_WAIT": "30", "TF_GATE_POLL": "0.01"}
+
+        state = self.gh_state()  # a 502 on the required-checks poll that clears: retried like tf pr gate
+        state["required_errors"] = 2
+        self.state.write_text(json.dumps(state))
+        result = self.tf("pr", "merge", "2", cwd=self.rev, env=wait)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue(self.gh_state()["merges"][-1]["auto"])
+
+        state = self.gh_state()  # still failing at the bound: exit 3, nothing merged
+        state["merges"], state["required_errors"] = [], 10**6
+        self.state.write_text(json.dumps(state))
+        result = self.tf("pr", "merge", "2", cwd=self.rev, env={"TF_GATE_WAIT": "0.1", "TF_GATE_POLL": "0.01"})
+        self.assertEqual(result.returncode, 3, result.stdout + result.stderr)
+        self.assertIn("could not read CI", result.stderr)
+        self.assertIn("502", result.stderr)
+        self.assertEqual(self.gh_state()["merges"], [])
+        self.assertEqual(self.gh_state()["prs"]["2"]["state"], "OPEN")
+
+        self.set_checks(head, "pass")  # unenforced, the gate check unreadable at the bound
+        self.set_check_seq(head, ["error"])
+        result = self.tf("pr", "merge", "2", cwd=self.rev, env={"TF_GATE_WAIT": "0.1", "TF_GATE_POLL": "0.01"})
+        self.assertEqual(result.returncode, 3, result.stdout + result.stderr)
+        self.assertIn("could not read CI", result.stderr)
+        self.assertEqual(self.gh_state()["merges"], [])
+        self.assertEqual(self.gh_state()["prs"]["2"]["state"], "OPEN")
+
     def test_merge_refuses_a_rejected_or_merely_claimed_head(self):
         head = self.open_pr()
         self.set_checks(head, "pass")

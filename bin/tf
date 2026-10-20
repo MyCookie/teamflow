@@ -32,15 +32,15 @@ The mode comes from `forge` in .claude/teamflow.json (see teamflow-config):
   If the repository adopted github but gh is missing, unauthenticated, or the
   remote is not GitHub, every command stops (exit 2): never a silent fallback.
 
-`tf pr gate` (and an unenforced `tf pr merge`) waits for pending CI checks,
+`tf pr gate` (and `tf pr merge`, on GitHub) waits for pending CI checks,
 polling every TF_GATE_POLL seconds (default 15) for up to TF_GATE_WAIT seconds
 (default 480, under the Bash tool's 10-minute ceiling), then reports the result.
 A failed poll or an empty check list is retried the same way. TF_GATE_WAIT must be
 a finite number >= 0 and TF_GATE_POLL a finite number > 0, else exit 2.
 
 Exit codes: 0 ok, 1 error, 2 setup or usage problem, 3 refused because of PR
-state (claimed, moved head, no approval, or after tf pr gate's wait, CI still
-running or unreadable). Exit 3 is a STOP, not a retry signal.
+state (claimed, moved head, no approval, or after the wait of tf pr gate or
+tf pr merge, CI still running or unreadable). Exit 3 is a STOP, not a retry signal.
 """
 
 import argparse
@@ -363,6 +363,17 @@ class Local:
 # -- GitHub forge ------------------------------------------------------------
 
 
+def gate_timing():
+    """(TF_GATE_WAIT, TF_GATE_POLL) in seconds; anything but finite wait >= 0 and poll > 0 is a setup error."""
+    try:
+        wait, poll = (float(os.environ.get(k, d)) for k, d in (("TF_GATE_WAIT", 480), ("TF_GATE_POLL", 15)))
+    except ValueError:
+        wait = poll = math.nan
+    if not (math.isfinite(wait) and math.isfinite(poll) and wait >= 0 and poll > 0):
+        raise SetupError("TF_GATE_WAIT must be a number of seconds >= 0 and TF_GATE_POLL one > 0")
+    return wait, poll
+
+
 class GitHub:
     def __init__(self, cfg):
         self.cfg = cfg
@@ -498,8 +509,20 @@ class GitHub:
         return [c for c in data if c["name"] != STATUS]
 
     def enforced(self, n):
-        """A ruleset makes checks required; then GitHub, not tf, enforces the merge."""
-        return bool(self.checks(n, required=True))
+        """A ruleset makes checks required; then GitHub, not tf, enforces the merge.
+
+        A failed poll is retried until TF_GATE_WAIT seconds pass, then exits 3 like `tf pr gate`.
+        """
+        wait, poll = gate_timing()
+        deadline = time.monotonic() + wait
+        while True:
+            try:
+                return bool(self.checks(n, required=True))
+            except RuntimeError as e:
+                left = deadline - time.monotonic()
+                if left <= 0:
+                    raise Refused(f"could not read CI within {wait:g}s: {e}") from None
+                time.sleep(min(poll, left))
 
     def pr_gate(self, n):
         """CI replaces the reviewer's local run: the required checks, or else the `gate` check, must pass.
@@ -508,12 +531,7 @@ class GitHub:
         seconds pass. At the bound a pending check or a failed poll exits 3, an empty list 2
         (no `gate` check), a red check 1.
         """
-        try:
-            wait, poll = (float(os.environ.get(k, d)) for k, d in (("TF_GATE_WAIT", 480), ("TF_GATE_POLL", 15)))
-        except ValueError:
-            wait = poll = math.nan
-        if not (math.isfinite(wait) and math.isfinite(poll) and wait >= 0 and poll > 0):
-            raise SetupError("TF_GATE_WAIT must be a number of seconds >= 0 and TF_GATE_POLL one > 0")
+        wait, poll = gate_timing()
         deadline, announced = time.monotonic() + wait, False
         while True:
             error = None

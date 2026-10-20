@@ -193,9 +193,17 @@ pushes. On GitHub with a ruleset it enables auto-merge, and GitHub merges
 once every required check passes; without one, `tf` checks the CI `gate`
 check and your verdict itself, then merges, and in that case it waits for
 pending CI like `tf pr gate`, so give it the same long Bash timeout. Either way the merge is pinned
-to the head you approved. A refusal is a STOP: report it, do not work around
-it. Never reach for `--admin`, a direct `git push`, or a self-approval. On
-`REQUEST_CHANGES`, merge nothing and leave the branch alone.
+to the head you approved. On GitHub it also retries a failed read of CI's
+required checks until `TF_GATE_WAIT`. Its exit codes:
+- 0: merged, or auto-merge enabled.
+- 1: an error. Without a ruleset, a red check (listed on stdout); otherwise
+  the merge itself failed. Do not retry.
+- 2: a setup problem, such as no `gate` check or a bad `TF_GATE_WAIT`.
+- 3: refused, including CI still running or unreadable at the wait bound
+  (`tf: could not read CI ...`).
+
+Every non-zero exit is a STOP: report it, do not work around it. Never reach
+for `--admin`, a direct `git push`, or a self-approval. On `REQUEST_CHANGES`, merge nothing and leave the branch alone.
 
 ## 7. Rounds and escalation
 

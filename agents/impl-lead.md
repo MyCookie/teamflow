@@ -100,10 +100,12 @@ idle-notification result or a `[Subagent hand-back]`. Answer it with
    "Release unit"), and run its Review handoff to a merge too.
 2. Message @manager, only after the release PR (if any) has merged: the PRs,
    the Issues each closes, each PR's final verdict, any that failed or were
-   escalated. Name the merged release PR and the new version, or say "no
-   release: no shipped path changed" (or that the batch already carries the
-   bump). The manager asks the human to update on this report, so a release
-   PR that has not merged must not be reported as the release.
+   escalated. End with exactly one release line: "Release: <version>, merged
+   in PR #N" (a release unit merged), "Release: <version>, carried by PR #N"
+   (the batch already carried the bump), or "No release: no shipped path
+   changed". The manager asks the human to update whenever the line names a
+   version, so a release PR that has not merged must not be reported as the
+   release.
 3. Clean up per the workflow rules, "Cleanup".
 
 ## Release unit

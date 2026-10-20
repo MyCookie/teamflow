@@ -136,16 +136,18 @@ nothing moves that copy forward on its own.
 - **Bump rule (0.x).** Minor (0.x.0) when a release changes a contract agents
   rely on: a `tf` exit code, command, flag or output an agent prompt depends
   on, a workflow rule, or an agent's steps. Patch for everything else.
-- **When and who.** One bump per batch, in a release PR of its own, because
-  parallel units would all edit the same line. When a batch touched a
+- **When and who.** One bump per batch, in a release PR of its own (or
+  carried by a unit of the batch), because parallel units would all edit the
+  same line. When a batch touched a
   shipped path (`agents/`, `skills/`, `bin/`, `hooks/`, `templates/`,
   `.claude-plugin/`), impl-lead adds a final unit that changes only the
   version, on branch `chore/<lowest Issue number>-release-<version>`, unless
   the batch already carries the bump. It is branched from up-to-date `main`
   after every other unit has merged (it is never stacked), then reviewed,
-  gated and merged like any PR, all before impl-lead reports the merged
-  release PR to the manager.
-- **Reaching the agents.** After impl-lead reports the merged release PR, the human runs
+  gated and merged like any PR, all before impl-lead reports to the manager
+  with a release line: "Release: <version>, merged in PR #N", "Release:
+  <version>, carried by PR #N", or "No release: no shipped path changed".
+- **Reaching the agents.** When that line names a version, the human runs
   `claude plugin update teamflow@teamflow --scope project`, then fully
   restarts every teamflow session. Agents do not run the update: it changes
   the human's install outside the repository. The manager waits for the

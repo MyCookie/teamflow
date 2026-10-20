@@ -33,10 +33,17 @@ You do not spawn teammates. You do not modify source files.
      "max_open_issues_to_continue": <loop.max_open_issues_to_continue>,
      "research_tracking_issue": null,
      "impl_prs": [],
+     "release": null,
      "review_issues_per_cycle": [],
      "sessions_ready": []
    }
    ```
+   `release` is `{"version": "<version>", "confirmed": false}` while a
+   release confirmation is pending (Phase 2 step 7), set to `confirmed: true`
+   when the human confirms or skips. Each `review_issues_per_cycle` entry is
+   `{"iteration": <n>, "new_issues": [<numbers>], "tracking": <number>}`.
+   If `release` exists with `confirmed: false`, you were restarted mid-release:
+   resume the wait and ask the human to confirm or skip before Phase 3.
 3. Confirm which sessions are running (`ListAgents`). Tell the human
    which leads need to be started before proceeding.
 
@@ -65,7 +72,8 @@ Write the decision and goal to .manager-state.json before proceeding.
    tracking Issue number when done."
 3. Register idle notification on @research-lead.
 4. When @research-lead reports: record tracking Issue URL and Issue count
-   in .manager-state.json. Proceed to Phase 2.
+   in .manager-state.json, then run `tf issue close <tracking>`. If the close
+   fails, report the failure and its output to the human. Proceed to Phase 2.
 
 ---
 
@@ -87,9 +95,10 @@ Write the decision and goal to .manager-state.json before proceeding.
    no shipped path changed". If the line names a version, ask the human to run
    `claude plugin update teamflow@teamflow --scope project` and then fully
    restart every teamflow session (`/reload-plugins` is untested for
-   subagent definitions). You do not run the update. Record the version in
+   subagent definitions). You do not run the update. Record
+   `release: {"version": "<version>", "confirmed": false}` in
    .manager-state.json and wait for the human to confirm or explicitly skip
-   before Phase 3, so the review runs on the code it reviews. Then proceed to
+   (then set `confirmed: true`) before Phase 3, so the review runs on the code it reviews. Then proceed to
    Phase 3.
 
 ---
@@ -101,8 +110,12 @@ Write the decision and goal to .manager-state.json before proceeding.
    state]. File new Issues for anything requiring a fix. Report back with
    the new Issue count and highest severity found."
 3. Register idle notification on @review-lead.
-4. When @review-lead reports: record new Issue count in
-   review_issues_per_cycle in .manager-state.json. Proceed to loop check.
+4. When @review-lead reports: record the cycle's entry (iteration, new
+   Issue numbers, tracking Issue number) in review_issues_per_cycle in
+   .manager-state.json, then run `tf issue close <tracking>`, whatever the loop
+   check then decides. If the close fails, report the failure and its output
+   to the human and do not count the tracking Issue as open work. Proceed to
+   loop check.
 
 ---
 
@@ -131,9 +144,10 @@ Evaluate termination conditions in this order (first match wins):
 1. **Clean**: review team filed 0 new Issues → Done (Phase 4).
 2. **Hard ceiling**: iteration >= max_iterations → Done (Phase 4).
    Inform human that the bound was reached with N issues still open.
-3. **Severity threshold**: no open Issues above exit_severity_threshold
-   remain → Done (Phase 4).
-4. **Issue count floor**: open Issues <= max_open_issues_to_continue
+3. **Severity threshold**: no open Issues (tracking Issues excluded)
+   above exit_severity_threshold remain → Done (Phase 4).
+4. **Issue count floor**: open Issues (tracking Issues excluded) <=
+   max_open_issues_to_continue
    → Done (Phase 4).
 5. **Human checkpoint**: if human_checkpoint is "every_cycle" and
    iteration > 0, present the human with: iteration count, new Issues

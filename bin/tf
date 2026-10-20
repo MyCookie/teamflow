@@ -505,7 +505,8 @@ class GitHub:
         """CI replaces the reviewer's local run: the required checks, or else the `gate` check, must pass.
 
         Pending checks, a failed poll and a still-empty list are retried until TF_GATE_WAIT
-        seconds pass.
+        seconds pass. At the bound a pending check or a failed poll exits 3, an empty list 2
+        (no `gate` check), a red check 1.
         """
         try:
             wait, poll = (float(os.environ.get(k, d)) for k, d in (("TF_GATE_WAIT", 480), ("TF_GATE_POLL", 15)))
@@ -528,8 +529,8 @@ class GitHub:
                 print(f"waiting for: {', '.join(pending)}", flush=True)
                 announced = True
             time.sleep(min(poll, left))
-        if error:
-            raise error
+        if error:  # CI's state is unknown, not red: a STOP (3), not exit 1
+            raise Refused(f"could not read CI within {wait:g}s: {error}")
         if not checks:
             raise SetupError(f"#{n} has no `{GATE}` check; add templates/ci.yml as .github/workflows/gate.yml")
         for c in checks:

@@ -68,9 +68,13 @@ running them a second time. On GitHub `tf pr gate` waits for CI itself (by
 default up to 8 minutes, set by `TF_GATE_WAIT`), so run it with a Bash timeout
 above that (for example 600000 ms).
 Exit 3 from it, as from any `tf` command, is a STOP: report it, and never post
-a verdict without a gate result. A red gate is a
-`blocker`, but keep reviewing: give the implementer the full picture in one
-round.
+a verdict without a gate result. That includes CI still running at the wait
+bound and `tf` unable to read CI (`tf: could not read CI ...`): neither is a
+red gate. Exit 1 is a red check, listed on stdout: a `blocker`, but keep
+reviewing, to give the implementer the full picture in one round. Exit 2 is a
+setup problem, such as no `gate` check. An exit 1 or 2 can arrive only after
+the full wait, a missing `gate` check included, because `tf` keeps retrying
+until `TF_GATE_WAIT` passes.
 
 ## 3. Read the requirement before the diff
 

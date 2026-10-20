@@ -462,11 +462,12 @@ class GitHubFlow(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertIn("lint: fail", result.stdout)
 
-        # still failing or empty at the bound: the failure, or no gate check, is reported
+        # still failing or empty at the bound: CI's state is unknown, so a failed poll is a STOP (3),
+        # not exit 1 (a red check); an empty list is a missing `gate` check (2)
         bound = {"TF_GATE_WAIT": "0.1", "TF_GATE_POLL": "0.01"}
         self.set_check_seq(head, ["error"])
         result = self.tf("pr", "gate", "2", cwd=self.rev, env=bound)
-        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(result.returncode, 3, result.stdout + result.stderr)
         self.assertIn("502", result.stderr)
         self.set_check_seq(head, ["empty"])
         result = self.tf("pr", "gate", "2", cwd=self.rev, env=bound)

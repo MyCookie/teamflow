@@ -468,6 +468,7 @@ class GitHubFlow(unittest.TestCase):
         self.set_check_seq(head, ["error"])
         result = self.tf("pr", "gate", "2", cwd=self.rev, env=bound)
         self.assertEqual(result.returncode, 3, result.stdout + result.stderr)
+        self.assertIn("could not read CI", result.stderr)
         self.assertIn("502", result.stderr)
         self.set_check_seq(head, ["empty"])
         result = self.tf("pr", "gate", "2", cwd=self.rev, env=bound)

@@ -72,9 +72,10 @@ a verdict without a gate result. That includes CI still running at the wait
 bound and `tf` unable to read CI (`tf: could not read CI ...`): neither is a
 red gate. Exit 1 is a red check, listed on stdout: a `blocker`, but keep
 reviewing, to give the implementer the full picture in one round. Exit 2 is a
-setup problem, such as no `gate` check. An exit 1 or 2 can arrive only after
-the full wait, a missing `gate` check included, because `tf` keeps retrying
-until `TF_GATE_WAIT` passes.
+setup problem, such as no `gate` check. A red check (exit 1) is reported as
+soon as every check has finished; a missing `gate` check (exit 2), unreadable
+CI and pending checks (exit 3) are reported only after the full `TF_GATE_WAIT`,
+because `tf` keeps retrying until then.
 
 ## 3. Read the requirement before the diff
 

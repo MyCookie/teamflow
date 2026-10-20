@@ -39,8 +39,8 @@ A failed poll or an empty check list is retried the same way. TF_GATE_WAIT must 
 a finite number >= 0 and TF_GATE_POLL a finite number > 0, else exit 2.
 
 Exit codes: 0 ok, 1 error, 2 setup or usage problem, 3 refused because of PR
-state (claimed, moved head, no approval, or CI still running after tf pr
-gate's wait). Exit 3 is a STOP, not a retry signal.
+state (claimed, moved head, no approval, or after tf pr gate's wait, CI still
+running or unreadable). Exit 3 is a STOP, not a retry signal.
 """
 
 import argparse

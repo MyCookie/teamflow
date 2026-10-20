@@ -67,15 +67,10 @@ GitHub it confirms that CI's required checks passed for this head instead of
 running them a second time. On GitHub `tf pr gate` waits for CI itself (by
 default up to 8 minutes, set by `TF_GATE_WAIT`), so run it with a Bash timeout
 above that (for example 600000 ms).
-Exit 3 from it, as from any `tf` command, is a STOP: report it, and never post
-a verdict without a gate result. That includes CI still running at the wait
-bound and `tf` unable to read CI (`tf: could not read CI ...`): neither is a
-red gate. Exit 1 is a red check, listed on stdout: a `blocker`, but keep
-reviewing, to give the implementer the full picture in one round. Exit 2 is a
-setup problem, such as no `gate` check. A red check (exit 1) is reported as
-soon as every check has finished; a missing `gate` check (exit 2), unreadable
-CI and pending checks (exit 3) are reported only after the full `TF_GATE_WAIT`,
-because `tf` keeps retrying until then.
+Exit 1 is a red gate: a `blocker`, but keep reviewing, to give the implementer
+the full picture in one round. Exit 2 or 3, as from any `tf` command, is a
+STOP: report the gate as not verified, and never post a verdict without a gate
+result. The exit codes are defined in the workflow skill, "Exit codes".
 
 ## 3. Read the requirement before the diff
 

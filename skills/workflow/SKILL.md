@@ -53,10 +53,11 @@ author's say-so.**
   changes only the version string, unless the batch already carries the bump.
   The release unit is branched from up-to-date `main` after every other unit
   has merged, and is reviewed and merged before impl-lead reports. impl-lead
-  names the merged release PR and the version in its report to @manager, or
-  says "no release: no shipped path changed" (or that the batch carries the
-  bump). Agents never run the update: it changes the human's install.
-  The manager asks the human to run it, restart, and confirm (or skip)
+  ends its report to @manager with one release line: "Release: <version>,
+  merged in PR #N", "Release: <version>, carried by PR #N" (the batch carries
+  the bump), or "No release: no shipped path changed". Agents never run the
+  update: it changes the human's install. Whenever the line names a version,
+  the manager asks the human to run it, restart, and confirm (or skip)
   before the review phase. See the README, "Release".
 - **Review → Implementation (loop).** Manager checks the loop bounds; if
   continuing, sends @impl-lead the new Issue list; if stopping, reports to

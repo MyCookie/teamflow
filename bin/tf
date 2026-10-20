@@ -295,9 +295,8 @@ class Local:
             raise Refused(f"this worktree is not at #{n}'s head; run tf pr checkout {n} first")
         if not os.access("scripts/gate.sh", os.X_OK):
             raise SetupError("scripts/gate.sh is missing or not executable")
-        code = subprocess.run(["./scripts/gate.sh"]).returncode
-        if code:
-            sys.exit(code)
+        if subprocess.run(["./scripts/gate.sh"]).returncode:
+            sys.exit(1)  # gate.sh's own code (2, 3, 127, a signal) must not read as setup or a STOP
 
     def pr_review(self, n, verdict, sha, body):
         r = self._load(n, "pr")
@@ -525,12 +524,7 @@ class GitHub:
                 time.sleep(min(poll, left))
 
     def pr_gate(self, n):
-        """CI replaces the reviewer's local run: the required checks, or else the `gate` check, must pass.
-
-        Pending checks, a failed poll and a still-empty list are retried until TF_GATE_WAIT
-        seconds pass. At the bound a pending check or a failed poll exits 3, an empty list 2
-        (no `gate` check), a red check 1.
-        """
+        """CI replaces the reviewer's local run: the required checks, or else the `gate` check, must pass."""
         wait, poll = gate_timing()
         deadline, announced = time.monotonic() + wait, False
         while True:
@@ -547,7 +541,7 @@ class GitHub:
                 print(f"waiting for: {', '.join(pending)}", flush=True)
                 announced = True
             time.sleep(min(poll, left))
-        if error:  # CI's state is unknown, not red: a STOP (3), not exit 1
+        if error:
             raise Refused(f"could not read CI within {wait:g}s: {error}")
         if not checks:
             raise SetupError(f"#{n} has no `{GATE}` check; add templates/ci.yml as .github/workflows/gate.yml")

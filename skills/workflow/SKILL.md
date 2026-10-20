@@ -142,12 +142,13 @@ or to raw `git`/`gh` to get around it: report it.
 `tf pr checkout` fetches the PR's branch from the configured remote, so PRs
 from forks cannot be reviewed.
 
-Exit codes: 0 ok, 1 error, 2 setup or usage problem, 3 refused because of PR state
-(claimed, moved head, no approval, or after `tf pr gate`'s wait, CI still
-running or unreadable). Exit 3 is a STOP, not a retry signal. `tf pr gate`
-reports a red check (exit 1) as soon as every check has finished, but a
-missing `gate` check (exit 2), unreadable CI and pending checks (exit 3) only
-after the full `TF_GATE_WAIT`.
+Exit codes: 0 ok, 1 error, 2 setup or usage problem, 3 refused because of PR
+state (claimed, moved head, no approval, or after the wait of `tf pr gate` or
+`tf pr merge`, CI still running or unreadable). Exit 3 is a STOP, not a retry
+signal. `tf pr gate` exits 1 for a red gate in both modes (locally, any nonzero
+result of `scripts/gate.sh`). On GitHub it reports a red check as soon as every
+check has finished, but a missing `gate` check (exit 2), unreadable CI and
+pending checks (exit 3) only after the full `TF_GATE_WAIT`.
 
 ## Domain language
 When the project has `CONTEXT.md` (its glossary) or `docs/adr/` (its

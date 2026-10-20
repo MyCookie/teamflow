@@ -112,6 +112,9 @@ class LocalFlow(unittest.TestCase):
         self.assertIn("+v2", self.ok("pr", "diff", "2", "app.txt", cwd=self.rev))
         self.assertEqual(self.ok("pr", "diff", "2", "nothing.txt", cwd=self.rev).strip(), "")
         self.assertEqual(self.tf("pr", "gate", "2", cwd=self.rev, env={"GATE_EXIT": "1"}).returncode, 1)
+        # a gate.sh exit of 2, 3 or 127 must not read as a setup problem or a STOP: any red is exit 1
+        for gate_exit in ("2", "3", "127"):
+            self.assertEqual(self.tf("pr", "gate", "2", cwd=self.rev, env={"GATE_EXIT": gate_exit}).returncode, 1, gate_exit)
 
         first = git("rev-parse", "HEAD", cwd=self.rev)
         self.refused("pr", "review", "2", "--verdict", "APPROVE", "--sha", "0" * 40, "--body-file", str(self.body), cwd=self.rev)

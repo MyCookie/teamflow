@@ -140,9 +140,12 @@ nothing moves that copy forward on its own.
   parallel units would all edit the same line. When a batch touched a
   shipped path (`agents/`, `skills/`, `bin/`, `hooks/`, `templates/`,
   `.claude-plugin/`), impl-lead adds a final unit that changes only the
-  version, on branch `chore/<lowest Issue number>-release-<version>`. It is
-  reviewed, gated and merged like any PR.
-- **Reaching the agents.** After the release PR merges, the human runs
+  version, on branch `chore/<lowest Issue number>-release-<version>`, unless
+  the batch already carries the bump. It is branched from up-to-date `main`
+  after every other unit has merged (it is never stacked), then reviewed,
+  gated and merged like any PR, all before impl-lead reports the merged
+  release PR to the manager.
+- **Reaching the agents.** After impl-lead reports the merged release PR, the human runs
   `claude plugin update teamflow@teamflow --scope project`, then fully
   restarts every teamflow session. Agents do not run the update: it changes
   the human's install outside the repository. The manager waits for the

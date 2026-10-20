@@ -50,9 +50,12 @@ author's say-so.**
   (`/reload-plugins` is untested for subagent definitions). When a batch's
   merged PRs touched a shipped path (`agents/`, `skills/`, `bin/`, `hooks/`,
   `templates/`, `.claude-plugin/`), impl-lead adds a final release unit that
-  changes only the version string. impl-lead names the release PR and the
-  version in its report to @manager, or says "no release: no shipped path
-  changed". Agents never run the update: it changes the human's install.
+  changes only the version string, unless the batch already carries the bump.
+  The release unit is branched from up-to-date `main` after every other unit
+  has merged, and is reviewed and merged before impl-lead reports. impl-lead
+  names the merged release PR and the version in its report to @manager, or
+  says "no release: no shipped path changed" (or that the batch carries the
+  bump). Agents never run the update: it changes the human's install.
   The manager asks the human to run it, restart, and confirm (or skip)
   before the review phase. See the README, "Release".
 - **Review → Implementation (loop).** Manager checks the loop bounds; if
@@ -139,8 +142,11 @@ or to raw `git`/`gh` to get around it: report it.
 from forks cannot be reviewed.
 
 Exit codes: 0 ok, 1 error, 2 setup or usage problem, 3 refused because of PR state
-(claimed, moved head, no approval, or CI still running after `tf pr gate`'s
-wait). Exit 3 is a STOP, not a retry signal.
+(claimed, moved head, no approval, or after `tf pr gate`'s wait, CI still
+running or unreadable). Exit 3 is a STOP, not a retry signal. `tf pr gate`
+reports a red check (exit 1) as soon as every check has finished, but a
+missing `gate` check (exit 2), unreadable CI and pending checks (exit 3) only
+after the full `TF_GATE_WAIT`.
 
 ## Domain language
 When the project has `CONTEXT.md` (its glossary) or `docs/adr/` (its

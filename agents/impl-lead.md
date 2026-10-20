@@ -38,15 +38,16 @@ with `--agent` does not get its `skills:` preloaded.
    plan for the human to review.
 6. Release unit: if the batch will touch any shipped path (`agents/`,
    `skills/`, `bin/`, `hooks/`, `templates/`, `.claude-plugin/`), add a final
-   unit that depends on all the others and changes only the `version` in
-   `.claude-plugin/plugin.json`, on branch
+   unit that depends on all the others (see "Release unit" below) and changes
+   only the `version` in `.claude-plugin/plugin.json`, on branch
    `chore/<lowest Issue number in the batch>-release-<version>`, with a
    `Refs:` trailer for each Issue in the batch. Bump the minor version
    (0.x.0) when a release changes a contract agents rely on (a `tf` exit
    code, command, flag or output an agent prompt depends on; a workflow
    rule; an agent's steps), the patch version otherwise. Skip it if the
-   batch is itself the release (it already carries the bump). It is
-   reviewed and merged like any PR.
+   batch is itself the release (it already carries the bump): the "changes
+   only the version" rule applies to a release unit you add, not to a batch
+   that already bundles the bump. It is reviewed and merged like any PR.
 7. Produce a plan table: unit | issue(s) | files owned | depends on | agent type
 8. Show this plan to the human. Wait for explicit approval before
    spawning any teammates.
@@ -81,6 +82,10 @@ dependency order: when the dependency merges, the stacked PR is retargeted
 to the base branch (by `tf` locally, by GitHub otherwise). Only then spawn
 its reviewer (see Review handoff).
 
+The release unit is exempt: it depends on several units, so it has no single
+branch to stack on, and its PR must not open before they merge. See "Release
+unit".
+
 ## When all teammates report done
 
 An implementer reports by ending its turn: its final message arrives as an
@@ -90,12 +95,27 @@ idle-notification result or a `[Subagent hand-back]`. Answer it with
 
 1. Verify each PR references its Issues correctly, then run the Review
    handoff for it. A PR is done when its `code-reviewer` round ends in
-   `APPROVE` and a merge, not when it is opened.
-2. Message @manager: the PRs, the Issues each closes, each PR's final
-   verdict, any that failed or were escalated. Name the release PR and the
-   new version, or say "no release: no shipped path changed". Spawn the
-   release unit only once the other units have merged.
+   `APPROVE` and a merge, not when it is opened. If the plan has a release
+   unit, spawn it as the last unit, once every other unit has merged (see
+   "Release unit"), and run its Review handoff to a merge too.
+2. Message @manager, only after the release PR (if any) has merged: the PRs,
+   the Issues each closes, each PR's final verdict, any that failed or were
+   escalated. Name the merged release PR and the new version, or say "no
+   release: no shipped path changed" (or that the batch already carries the
+   bump). The manager asks the human to update on this report, so a release
+   PR that has not merged must not be reported as the release.
 3. Clean up per the workflow rules, "Cleanup".
+
+## Release unit
+
+Spawned last, only after every other unit has merged. Branch it from
+up-to-date `main` (update the main worktree first), not from any unit's
+branch, with base branch `main` in the implementer's brief:
+```bash
+git worktree add ../<release-branch> -b chore/<lowest Issue number>-release-<version> main
+```
+It is reviewed and merged through the Review handoff before you report to
+@manager.
 
 ## Review handoff (you own per-PR review rounds)
 

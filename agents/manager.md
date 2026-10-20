@@ -82,7 +82,7 @@ Write the decision and goal to .manager-state.json before proceeding.
    .manager-state.json. Each PR has been through code-reviewer rounds and
    merged, or was escalated; relay any escalation to the human.
    Increment iteration counter.
-   If impl-lead reports a release, ask the human to run
+   If impl-lead reports a merged release PR, ask the human to run
    `claude plugin update teamflow@teamflow --scope project` and then fully
    restart every teamflow session (`/reload-plugins` is untested for
    subagent definitions). You do not run the update. Record the version in

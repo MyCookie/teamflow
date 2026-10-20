@@ -90,16 +90,17 @@ Write the decision and goal to .manager-state.json before proceeding.
    .manager-state.json. Each PR has been through code-reviewer rounds and
    merged, or was escalated; relay any escalation to the human.
    Increment iteration counter.
-   impl-lead's report always carries one release line: "Release: <version>,
-   merged in PR #N", "Release: <version>, carried by PR #N", or "No release:
-   no shipped path changed". If the line names a version, ask the human to run
-   `claude plugin update teamflow@teamflow --scope project` and then fully
-   restart every teamflow session (`/reload-plugins` is untested for
-   subagent definitions). You do not run the update. Record
+   Every impl-lead report ends with one release line (workflow rules,
+   Handoffs, Release). If the line is missing or matches none of its forms,
+   or names a version that is not `version` in `.claude-plugin/plugin.json` on
+   `main`, treat it as unresolved: ask @impl-lead for the line and do not
+   enter Phase 3. If it names a version, ask the human to run the update and
+   restart as the same rule says; you do not run it. Relay an "unmerged"
+   line to the human. Record
    `release: {"version": "<version>", "confirmed": false}` in
    .manager-state.json and wait for the human to confirm or explicitly skip
-   (then set `confirmed: true`) before Phase 3, so the review runs on the code it reviews. Then proceed to
-   Phase 3.
+   (then set `confirmed: true`) before Phase 3, so the review runs on the code
+   it reviews. Then proceed to Phase 3.
 
 ---
 

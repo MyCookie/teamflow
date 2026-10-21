@@ -102,7 +102,8 @@ single branch to stack on.
    do not wait on it again.
 2. If a unit stays escalated or unmerged and no bump has merged, spawn
    nothing and report with the "unmerged" release line. If the carrying PR
-   merged, report the version line and name the unmerged PR in the body.
+   merged, go to step 5 for the version, then report the version line and
+   name the unmerged PR in the body.
 3. Re-check whether the merged units touched a shipped path. If so and no
    unit carries the bump, update `main` as the rule says (on GitHub,
    `git pull --ff-only` in the main worktree), read `version` from
@@ -114,11 +115,12 @@ single branch to stack on.
    ```
 4. Run its Review handoff to a merge. A release PR that stays unmerged is
    escalated like any PR (Review handoff step 6) and reported with the
-   "unmerged" release line.
-5. Once the bumping PR has merged (the release PR, or the carrying PR in the
-   carried case): on GitHub run `git pull --ff-only` in the main worktree,
-   then re-read `version` from `.claude-plugin/plugin.json`. That is the
-   version for the release line. Do this in both cases, before you report.
+   "unmerged" release line. If it merged, go to step 5.
+5. Before any report that names a version, once the bumping PR has merged
+   (the release PR, or the carrying PR in the carried case): on GitHub run
+   `git pull --ff-only` in the main worktree, then re-read `version` from
+   `.claude-plugin/plugin.json`. That is the version for the release line.
+   Never take it from the PR or from memory.
 
 ## Review handoff (you own per-PR review rounds)
 
@@ -135,15 +137,15 @@ The implementer cannot spawn a reviewer and never merges. For each PR:
 4. When it returns, release the claim first: `tf pr release <N>`, also if
    it died without a verdict. On `APPROVE` it has merged, or on GitHub queued
    an auto-merge that lands once required checks pass; remove the unit's
-   worktree once `tf pr view <N>` shows it merged. On `REQUEST_CHANGES`, resume the implementer with
-   `SendMessage(to: "<its name>")` and the findings, wait for its fix, then
+   worktree once `tf pr view <N>` shows it merged. On `REQUEST_CHANGES`,
+   resume the implementer with `SendMessage(to: "<its name>")` and the findings, wait for its fix, then
    spawn a new reviewer.
 5. An approved PR that stays unmerged on GitHub because it is behind the
    base branch (the teamflow ruleset requires branches to be up to date;
    `tf pr view` does not show this, so use the git check under "Queued
    merge" in the workflow skill, Handoffs, Release): resume the implementer
-   to merge the base branch into its branch (never rebase or force-push), then run a new round; the old verdict was for the
-   old head.
+   to merge the base branch into its branch (never rebase or force-push),
+   then run a new round; the old verdict was for the old head.
 6. Stop and escalate to @manager at five rounds, when a finding is
    re-argued without new evidence, or when the dispute is about what the
    Issue requires. Never merge a PR yourself and never report a verdict the

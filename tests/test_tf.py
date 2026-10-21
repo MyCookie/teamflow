@@ -619,6 +619,22 @@ class GitHubFlow(unittest.TestCase):
         self.assertTrue(self.gh_state()["merges"][-1]["auto"])
         self.assertEqual(self.gh_state()["prs"]["2"]["state"], "OPEN")  # GitHub merges it later
 
+    def test_ruleset_merge_does_not_wait_for_unfinished_or_red_required_checks(self):
+        """With a ruleset GitHub enforces the required checks: tf enables auto-merge at once, whatever their bucket."""
+        head = self.open_pr()
+        self.ok("pr", "review", "2", "--verdict", "APPROVE", "--sha", head, "--body", "ok", cwd=self.rev)
+        for bucket in ("pending", "fail"):
+            with self.subTest(bucket=bucket):
+                self.set_checks(head, bucket, required=True)
+                state = self.gh_state()
+                state["merges"] = []
+                self.state.write_text(json.dumps(state))
+                start = time.monotonic()
+                result = self.tf("pr", "merge", "2", cwd=self.rev, env={"TF_GATE_WAIT": "30", "TF_GATE_POLL": "0.01"})
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertLess(time.monotonic() - start, 10)  # far under TF_GATE_WAIT
+                self.assertTrue(self.gh_state()["merges"][-1]["auto"])
+
     def test_missing_gh_stops(self):
         bare_path = Path(self.tmp.name) / "nogh"
         bare_path.mkdir()

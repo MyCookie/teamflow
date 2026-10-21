@@ -10,7 +10,10 @@ contents API finds on the default branch. "check_seq" maps a head SHA to a list
 of buckets for the `gate` check: each `pr checks` call reads the first and drops
 it, except the last, which stays. A bucket of "empty" answers with no checks, and
 "error" fails the call with an HTTP 502. "required_errors" is a count of
-`pr checks --required` calls that fail that way before the rest answer. A `pr checks`
+`pr checks --required` calls that fail that way before the rest answer; "required_errors_until"
+is the same for a wall-clock time (seconds since the epoch). "revoke_on_pending" makes a `pr checks`
+answer that holds a pending check also record a failure of the review status on the head, as
+a reviewer rejecting it meanwhile would. A `pr checks`
 answer that holds a pending check exits 8, which `gh pr checks --help` documents as
 "8: Checks pending". The help does not say what `--json` prints or exits with, so that
 the JSON is still printed alongside exit 8 is unverified; it is what this fake does.
@@ -21,6 +24,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 
 STATE = os.environ["FAKE_GH_STATE"]
 BARE = os.environ.get("FAKE_GH_BARE", "")
@@ -116,9 +120,11 @@ def main():
         elif verb == "view":
             print(json.dumps(pr_json(state, rest[0])))
         elif verb == "checks":
-            if "--required" in rest and state.get("required_errors", 0) > 0:
-                state["required_errors"] -= 1
-                save(state)
+            if "--required" in rest and (state.get("required_errors", 0) > 0
+                                         or time.time() < state.get("required_errors_until", 0)):
+                if state.get("required_errors", 0) > 0:
+                    state["required_errors"] -= 1
+                    save(state)
                 print("gh: HTTP 502", file=sys.stderr)
                 sys.exit(1)
             if "--required" in rest and not state["required"]:
@@ -136,8 +142,13 @@ def main():
                 checks = [] if seq[0] == "empty" else [{"name": "gate", "bucket": seq[0]}]
             else:
                 checks = state["checks"].get(sha, [])
+            pending = any(c["bucket"] == "pending" for c in checks)
+            if pending and state.get("revoke_on_pending"):
+                state["statuses"].setdefault(sha, []).insert(
+                    0, {"context": "teamflow/code-review", "state": "failure", "description": "REQUEST_CHANGES"})
+                save(state)
             print(json.dumps(checks))
-            sys.exit(8 if any(c["bucket"] == "pending" for c in checks) else 0)
+            sys.exit(8 if pending else 0)
         elif verb == "review":
             state["reviews"].append({"pr": rest[0], "body": opt(rest, "--body")})
             save(state)

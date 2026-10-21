@@ -32,11 +32,18 @@ The mode comes from `forge` in .claude/teamflow.json (see teamflow-config):
   If the repository adopted github but gh is missing, unauthenticated, or the
   remote is not GitHub, every command stops (exit 2): never a silent fallback.
 
-`tf pr gate` (and `tf pr merge`, on GitHub) waits for pending CI checks,
-polling every TF_GATE_POLL seconds (default 15) for up to TF_GATE_WAIT seconds
-(default 480, under the Bash tool's 10-minute ceiling), then reports the result.
-A failed poll or an empty check list is retried the same way. TF_GATE_WAIT must be
-a finite number >= 0 and TF_GATE_POLL a finite number > 0, else exit 2.
+On GitHub, `tf pr gate` and an unenforced `tf pr merge` (no ruleset) wait for
+pending CI checks, polling every TF_GATE_POLL seconds (default 15) for up to
+TF_GATE_WAIT seconds (default 480), then report the result. With a ruleset,
+`tf pr merge` does not wait for pending checks: it retries only a failed read of
+the required checks, then enables auto-merge. A failed poll or an empty check
+list is retried the same way. `tf pr merge` has one TF_GATE_WAIT deadline for
+all of it, not one per step. tf puts no time limit on the gh calls, so the
+real wait is that deadline plus the last poll and the calls after it; how that
+compares with the Bash tool's timeout is not verified here. An unenforced merge
+reads the verdict again after the wait and refuses (exit 3) unless it is still
+an APPROVE for the head. TF_GATE_WAIT must be a finite number >= 0 and
+TF_GATE_POLL a finite number > 0, else exit 2 (also for `tf pr merge`).
 
 Exit codes: 0 ok, 1 error, 2 setup or usage problem, 3 refused because of PR
 state (claimed, moved head, no approval, or after the wait of tf pr gate or
@@ -507,35 +514,25 @@ class GitHub:
             raise RuntimeError(f"gh pr checks failed ({result.returncode}): {(result.stderr or result.stdout).strip()}")
         return [c for c in data if c["name"] != STATUS]
 
-    def enforced(self, n):
-        """A ruleset makes checks required; then GitHub, not tf, enforces the merge.
+    def settle(self, n, stop_if_enforced=False):
+        """Poll the PR's gating checks within one TF_GATE_WAIT deadline; True if a ruleset makes checks required.
 
-        A failed poll is retried until TF_GATE_WAIT seconds pass, then exits 3 like `tf pr gate`.
+        The required checks, or else the `gate` check, must have finished and passed: a red check exits 1,
+        a missing `gate` check 2, pending or unreadable CI at the deadline 3. With `stop_if_enforced` the
+        required checks need not finish (GitHub enforces them), only be readable. A failed or empty poll is retried.
         """
-        wait, poll = gate_timing()
-        deadline = time.monotonic() + wait
-        while True:
-            try:
-                return bool(self.checks(n, required=True))
-            except RuntimeError as e:
-                left = deadline - time.monotonic()
-                if left <= 0:
-                    raise Refused(f"could not read CI within {wait:g}s: {e}") from None
-                time.sleep(min(poll, left))
-
-    def pr_gate(self, n):
-        """CI replaces the reviewer's local run: the required checks, or else the `gate` check, must pass."""
         wait, poll = gate_timing()
         deadline, announced = time.monotonic() + wait, False
         while True:
             error = None
             try:
-                checks = self.checks(n, required=True) or [c for c in self.checks(n, required=False) if c["name"] == GATE]
+                required = self.checks(n, required=True)
+                checks = required or [c for c in self.checks(n, required=False) if c["name"] == GATE]
             except RuntimeError as e:
-                checks, error = [], e  # transient: never fall back to `gate` alone on a failed --required query
+                required, checks, error = [], [], e  # transient: never fall back to `gate` alone on a failed --required query
             left = deadline - time.monotonic()
             pending = [c["name"] for c in checks if c["bucket"] == "pending"]
-            if checks and not pending or left <= 0:
+            if required and stop_if_enforced or checks and not pending or left <= 0:
                 break
             if not announced and pending:
                 print(f"waiting for: {', '.join(pending)}", flush=True)
@@ -543,6 +540,8 @@ class GitHub:
             time.sleep(min(poll, left))
         if error:
             raise Refused(f"could not read CI within {wait:g}s: {error}")
+        if required and stop_if_enforced:
+            return True
         if not checks:
             raise SetupError(f"#{n} has no `{GATE}` check; add templates/ci.yml as .github/workflows/gate.yml")
         for c in checks:
@@ -551,6 +550,16 @@ class GitHub:
             raise Refused(f"CI did not finish within {wait:g}s; still running: {', '.join(pending)}")
         if any(c["bucket"] != "pass" for c in checks):
             sys.exit(1)
+        return bool(required)
+
+    def pr_gate(self, n):
+        """CI replaces the reviewer's local run."""
+        self.settle(n)
+
+    def approved(self, n, pr):
+        latest = self.statuses(pr["headRefOid"])
+        if not latest or latest[0]["state"] != "success":
+            raise Refused(f"#{n} has no APPROVE for its current head {pr['headRefOid'][:12]}")
 
     def pr_review(self, n, verdict, sha, body):
         if self.head(n)["headRefOid"] != sha:
@@ -564,16 +573,14 @@ class GitHub:
         pr = self.head(n)
         if pr["baseRefName"] != self.cfg["base"]:
             raise Refused(f"#{n} targets {pr['baseRefName']}, not {self.cfg['base']}: merge its dependency first")
-        latest = self.statuses(pr["headRefOid"])
-        if not latest or latest[0]["state"] != "success":
-            raise Refused(f"#{n} has no APPROVE for its current head {pr['headRefOid'][:12]}")
+        self.approved(n, pr)
         body = "\n".join([*(f"Closes #{i}" for i in closes(pr["body"])), "Reviewed-by: teamflow:code-reviewer"])
         args = ["pr", "merge", str(n), "--merge", "--match-head-commit", pr["headRefOid"],
                 "--subject", f"Merge {pr['headRefName']}: {pr['title']}", "--body", body]
-        if self.enforced(n):
+        if self.settle(n, stop_if_enforced=True):
             print(self.gh(*args, "--auto") or f"#{n}: auto-merge enabled; GitHub merges once every required check passes")
             return
-        self.pr_gate(n)  # unenforced repository: tf is the only thing checking the gate
+        self.approved(n, pr)  # unenforced: the wait may have outlived the verdict, and only tf checks it
         print(self.gh(*args) or f"#{n}: merged")
 
 

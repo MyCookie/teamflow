@@ -8,6 +8,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -112,6 +113,11 @@ class LocalFlow(unittest.TestCase):
         self.assertIn("+v2", self.ok("pr", "diff", "2", "app.txt", cwd=self.rev))
         self.assertEqual(self.ok("pr", "diff", "2", "nothing.txt", cwd=self.rev).strip(), "")
         self.assertEqual(self.tf("pr", "gate", "2", cwd=self.rev, env={"GATE_EXIT": "1"}).returncode, 1)
+        # a gate.sh killed by a signal (subprocess reports a negative code) is red too, not a crash
+        (self.rev / "scripts" / "gate.sh").write_text("#!/bin/sh\nkill -KILL $$\n")
+        result = self.tf("pr", "gate", "2", cwd=self.rev)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        git("checkout", "--quiet", "--", "scripts/gate.sh", cwd=self.rev)
         # a gate.sh exit of 2, 3 or 127 must not read as a setup problem or a STOP: any red is exit 1
         for gate_exit in ("2", "3", "127"):
             self.assertEqual(self.tf("pr", "gate", "2", cwd=self.rev, env={"GATE_EXIT": gate_exit}).returncode, 1, gate_exit)
@@ -520,13 +526,60 @@ class GitHubFlow(unittest.TestCase):
         self.assertEqual(self.gh_state()["merges"], [])
         self.assertEqual(self.gh_state()["prs"]["2"]["state"], "OPEN")
 
-        self.set_checks(head, "pass")  # unenforced, the gate check unreadable at the bound
+    def test_unenforced_merge_treats_an_unreadable_gate_check_as_a_stop(self):
+        head = self.open_pr()
+        self.ok("pr", "review", "2", "--verdict", "APPROVE", "--sha", head, "--body", "ok", cwd=self.rev)
+        self.set_checks(head, "pass")  # no ruleset: the required-checks read reports none and the gate check is read
         self.set_check_seq(head, ["error"])
         result = self.tf("pr", "merge", "2", cwd=self.rev, env={"TF_GATE_WAIT": "0.1", "TF_GATE_POLL": "0.01"})
         self.assertEqual(result.returncode, 3, result.stdout + result.stderr)
         self.assertIn("could not read CI", result.stderr)
         self.assertEqual(self.gh_state()["merges"], [])
         self.assertEqual(self.gh_state()["prs"]["2"]["state"], "OPEN")
+
+    def test_merge_without_a_ruleset_has_one_deadline_for_every_wait(self):
+        head = self.open_pr()
+        self.ok("pr", "review", "2", "--verdict", "APPROVE", "--sha", head, "--body", "ok", cwd=self.rev)
+        self.set_checks(head, "pending")  # no required checks, and the `gate` check never finishes
+        wait = 2
+        state = self.gh_state()  # the required-checks read fails for 60% of the wait, then reports none
+        state["required_errors_until"] = time.time() + 0.6 * wait
+        self.state.write_text(json.dumps(state))
+        start = time.monotonic()
+        result = self.tf("pr", "merge", "2", cwd=self.rev, env={"TF_GATE_WAIT": str(wait), "TF_GATE_POLL": "0.05"})
+        elapsed = time.monotonic() - start
+        self.assertEqual(result.returncode, 3, result.stdout + result.stderr)
+        self.assertIn("still running: gate", result.stderr)
+        self.assertLess(elapsed, wait + 0.7, "two deadlines in a row would take about 3.2s")
+        self.assertEqual(self.gh_state()["merges"], [])
+
+    def test_unenforced_merge_rereads_the_approval_after_the_wait(self):
+        head = self.open_pr()
+        self.ok("pr", "review", "2", "--verdict", "APPROVE", "--sha", head, "--body", "ok", cwd=self.rev)
+        self.set_check_seq(head, ["pending", "pass"])  # a reviewer rejects the head while CI runs
+        state = self.gh_state()
+        state["revoke_on_pending"] = True
+        self.state.write_text(json.dumps(state))
+        result = self.tf("pr", "merge", "2", cwd=self.rev, env={"TF_GATE_WAIT": "30", "TF_GATE_POLL": "0.01"})
+        self.assertEqual(result.returncode, 3, result.stdout + result.stderr)
+        self.assertIn("no APPROVE", result.stderr)
+        self.assertEqual(self.gh_state()["merges"], [])
+        self.assertEqual(self.gh_state()["prs"]["2"]["state"], "OPEN")
+
+    def test_merge_on_a_ruleset_repository_validates_the_wait_settings(self):
+        head = self.open_pr()
+        self.set_checks(head, "pass", required=True)
+        self.ok("pr", "review", "2", "--verdict", "APPROVE", "--sha", head, "--body", "ok", cwd=self.rev)
+        for env in ({"TF_GATE_WAIT": "abc"}, {"TF_GATE_WAIT": "-1"}, {"TF_GATE_POLL": "0"}):
+            result = self.tf("pr", "merge", "2", cwd=self.rev, env=env)
+            self.assertEqual(result.returncode, 2, f"{env}: {result.stdout}{result.stderr}")
+            self.assertIn("TF_GATE_WAIT", result.stderr)
+        self.assertEqual(self.gh_state()["merges"], [])
+        state = self.gh_state()  # 0 is a valid wait: read once, then exit 3 if the read fails
+        state["required_errors"] = 10**6
+        self.state.write_text(json.dumps(state))
+        self.code(3, "pr", "merge", "2", cwd=self.rev)
+        self.assertEqual(self.gh_state()["merges"], [])
 
     def test_merge_refuses_a_rejected_or_merely_claimed_head(self):
         head = self.open_pr()

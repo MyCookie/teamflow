@@ -96,22 +96,29 @@ The rule is in the workflow skill (Handoffs, Release); this is your part.
 Never stack the release unit: it depends on several units, so it has no
 single branch to stack on.
 
-1. Wait for queued merges without polling: after each reviewer or
-   implementer reports, run `tf pr view <N>` on the units still queued. If
-   only queued merges remain, ask the human to message you when they land,
-   then check again.
-2. If a unit stays escalated or unmerged, spawn nothing and report with the
-   "unmerged" release line.
+1. Queued merges: apply "Queued merge" (workflow skill, Handoffs, Release)
+   to each approved PR whose auto-merge is queued. Do not ask the human to
+   message you. A PR that stays unmerged is escalated to @manager, and you
+   do not wait on it again.
+2. If a unit stays escalated or unmerged and no bump has merged, spawn
+   nothing and report with the "unmerged" release line. If the carrying PR
+   merged, report the version line and name the unmerged PR in the body.
 3. Re-check whether the merged units touched a shipped path. If so and no
-   unit carries the bump, update `main` as the rule says, read `version`
-   from `.claude-plugin/plugin.json`, and branch the release unit from
-   `main`, with base branch `main` in the implementer's brief:
+   unit carries the bump, update `main` as the rule says (on GitHub,
+   `git pull --ff-only` in the main worktree), read `version` from
+   `.claude-plugin/plugin.json` (the bump-from version), and branch the
+   release unit from `main`, with base branch `main` in the implementer's
+   brief:
    ```bash
    git worktree add ../<release-branch> -b chore/<lowest Issue number>-release-<version> main
    ```
 4. Run its Review handoff to a merge. A release PR that stays unmerged is
    escalated like any PR (Review handoff step 6) and reported with the
    "unmerged" release line.
+5. Once the bumping PR has merged (the release PR, or the carrying PR in the
+   carried case): on GitHub run `git pull --ff-only` in the main worktree,
+   then re-read `version` from `.claude-plugin/plugin.json`. That is the
+   version for the release line. Do this in both cases, before you report.
 
 ## Review handoff (you own per-PR review rounds)
 

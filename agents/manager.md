@@ -96,7 +96,8 @@ Write the decision and goal to .manager-state.json before proceeding.
    `main`, treat it as unresolved: ask @impl-lead for the line and do not
    enter Phase 3. If it names a version, ask the human to run the update and
    restart as the same rule says; you do not run it. Relay an "unmerged"
-   line to the human. Record
+   line, or an unmerged PR the report body names beside a version line, to
+   the human. Record
    `release: {"version": "<version>", "confirmed": false}` in
    .manager-state.json and wait for the human to confirm or explicitly skip
    (then set `confirmed: true`) before Phase 3, so the review runs on the code
@@ -164,8 +165,10 @@ Evaluate termination conditions in this order (first match wins):
 Report to the human:
 - Total iterations completed
 - Total PRs opened and merged
-- The released version, plus any merged shipped-path changes not yet
-  released (or whose update the human skipped)
+- The released version, or that no release happened, and whether the human
+  skipped the update. Merged shipped-path changes left by an unmerged batch,
+  and merge-review merges, are not tracked (workflow rules, Handoffs,
+  Release): say that they ship with the next release, not a list.
 - Remaining open Issues (count + links)
 - Whether the loop ended clean or hit a bound
 - Suggest next steps if Issues remain

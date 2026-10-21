@@ -64,20 +64,54 @@ author's say-so.**
     queued auto-merge is not merged. The release unit is branched from
     up-to-date `main` (never stacked) after every other unit has merged, then
     reviewed and merged like any PR, all before impl-lead reports. On GitHub
-    units merge remotely, so impl-lead first fast-forwards the main worktree
-    (`git pull --ff-only` there); locally `tf pr merge` has already updated
-    `main`. The version to bump from, and the version to report, is
-    `version` in `.claude-plugin/plugin.json` on up-to-date `main`, read after
-    the bumping PR has merged.
+    units merge remotely, so the main worktree must be fast-forwarded
+    (`git pull --ff-only` there) before `main` is read; locally `tf pr merge`
+    has already updated `main`. Two readings of `version` in
+    `.claude-plugin/plugin.json`, at different times:
+    - *Bump from*: read on up-to-date `main` before branching the release
+      unit.
+    - *Report*: read on `main` after the bumping PR (release unit or carrying
+      PR) has merged, after the fast-forward on GitHub. This is the version
+      the release line names.
+  - *Queued merge.* No human is involved and nobody polls. Once a reviewer
+    reports `APPROVE` with an auto-merge queued, impl-lead runs `tf pr gate
+    <N>` once. That one blocking call returns as soon as every check has
+    finished; only while CI is pending does it wait, up to about
+    `TF_GATE_WAIT` (default 480 s; the last poll and the calls after it add
+    to that). It needs the long Bash timeout. Then it runs `tf pr view <N>`,
+    which shows state, not whether the branch is behind the base. If the PR
+    is merged, continue. If it is open, impl-lead checks for "behind" with
+    git in the main worktree (`<remote>` is the configured remote, `origin`
+    by default): `git fetch --quiet <remote> <base> <branch>`, then `git
+    merge-base --is-ancestor <remote>/<base> <remote>/<branch>`. Outcomes:
+    - Ancestor check exits 1: the base moved on and the ruleset holds the
+      merge. impl-lead's Review handoff rule for that applies (merge the base
+      in, a new round).
+    - Ancestor check exits 0: up to date. Run `tf pr view <N>` once more,
+      without waiting: GitHub can merge a moment after the checks finish (the
+      delay was not measured). Still not merged means the PR *stays
+      unmerged*: impl-lead escalates it to @manager and does not wait a
+      second time. Gate red or exit 3 from `tf pr gate` ends the same way.
+    - The fetch fails, or the check exits with any other code: "behind" is
+      not verified. Run `tf pr view <N>` once more (a PR merged just before
+      the check has its branch deleted, so the fetch fails). Merged,
+      continue; otherwise treat it as *stays unmerged* and say in the
+      escalation that the check could not run.
   - *Unmerged.* If any unit, the release PR or the carrying PR is escalated
     or stays unmerged, impl-lead does not hold the report: it spawns no
-    release unit and reports at once. Merged shipped-path changes wait for
-    the next release.
+    release unit and reports at once, naming the unmerged PR in the report
+    body. Merged shipped-path changes left by an unmerged batch are not
+    tracked by any mechanism: they ship with the next release that happens.
+    PRs merged through merge-review mode (outside the loop) get no automatic
+    release step either.
   - *Release line.* impl-lead ends its report to @manager with exactly one of:
     "Release: <version>, merged in PR #N" (the release unit),
     "Release: <version>, carried by PR #N" (the carrying PR, merged),
     "No release: PR #N unmerged" (the unmerged PR that stopped it), or
-    "No release: no shipped path changed".
+    "No release: no shipped path changed". A version bump merged on `main`
+    always gets a version line, even if another unit stays unmerged: the
+    update follows. "No release: PR #N unmerged" applies only when no bump
+    has merged.
   - *Update.* Whenever the line names a version, the manager asks the human to
     run `claude plugin update teamflow@teamflow --scope project`, restart
     every teamflow session, and confirm or skip before the review phase.

@@ -67,10 +67,15 @@ GitHub it confirms that CI's required checks passed for this head instead of
 running them a second time. On GitHub `tf pr gate` waits for CI itself (by
 default up to 8 minutes, set by `TF_GATE_WAIT`), so run it with a Bash timeout
 above that (for example 600000 ms).
-Exit 1 is a red gate: a `blocker`, but keep reviewing, to give the implementer
-the full picture in one round. Exit 2 or 3, as from any `tf` command, is a
-STOP: report the gate as not verified, and never post a verdict without a gate
-result. The exit codes are defined in the workflow skill, "Exit codes".
+Exit 2 or 3, as from any `tf` command, is a STOP: report the gate as not
+verified, and never post a verdict without a gate result. Exit 1 is a red gate
+on GitHub (a failed check, listed on stdout). Locally it is also what a
+`scripts/gate.sh` that could not run returns (a missing `.env`, services down,
+a command not found), so read the output before you call it red. A red check
+is a `blocker`, but keep reviewing, to give the implementer the full picture in
+one round. A gate that could not run is a STOP under section 7: the gate is
+not verified. The exit codes are defined in the workflow skill, "Issues and
+PRs: `tf`".
 
 ## 3. Read the requirement before the diff
 
@@ -184,18 +189,20 @@ tf pr merge <N>
 It refuses (exit 3) unless the PR targets the base branch and your APPROVE
 is for its current head. Locally it merges into the base branch with a
 `Reviewed-by:` trailer and closes the Issues the PR body closes; it never
-pushes. On GitHub with a ruleset it enables auto-merge, and GitHub merges
-once every required check passes; without one, `tf` checks the CI `gate`
-check and your verdict itself, then merges, and in that case it waits for
-pending CI like `tf pr gate`, so give it the same long Bash timeout. Either way the merge is pinned
-to the head you approved. On GitHub it also retries a failed read of CI's
-required checks until `TF_GATE_WAIT`. Its exit codes:
-- 0: merged, or auto-merge enabled.
-- 1: an error. Without a ruleset, a red check (listed on stdout); otherwise
-  the merge itself failed. Do not retry.
-- 2: a setup problem, such as no `gate` check or a bad `TF_GATE_WAIT`.
-- 3: refused, including CI still running or unreadable at the wait bound
-  (`tf: could not read CI ...`).
+pushes, and it also refuses (exit 3) on a conflict or on uncommitted changes
+in the base checkout. On GitHub every `tf pr merge` can block for up to
+`TF_GATE_WAIT` (by default 480 s, one deadline for the whole merge), so run it
+with the long Bash timeout of section 2. With a ruleset it waits only while
+CI's required checks cannot be read, then enables auto-merge and GitHub merges
+once every required check passes; without one, `tf` waits for pending CI, then
+checks the `gate` check and your verdict itself, and merges. There it reads
+your verdict again after the wait and refuses (exit 3) if it is no longer an
+APPROVE for the head. Either way the merge is pinned to the head you approved.
+The wait starts after `tf` has read the PR and its status; `tf` puts no time
+limit on its `gh` calls, so the real wait is the deadline plus the last poll
+and the calls after it. Whether that fits under the Bash tool's 600000 ms
+ceiling was not measured. The exit codes are in the workflow skill, "Issues
+and PRs: `tf`".
 
 Every non-zero exit is a STOP: report it, do not work around it. Never reach
 for `--admin`, a direct `git push`, or a self-approval. On `REQUEST_CHANGES`, merge nothing and leave the branch alone.
@@ -208,7 +215,8 @@ finding whether it truly blocks or the owner could reasonably accept it.
 
 Stop and make the blocker your final message, naming the decision needed,
 when:
-- you cannot run the gate (no `.env`, setup exits 2, services down);
+- you cannot run the gate (no `.env`, services down, `scripts/gate.sh` missing,
+  or a local `tf pr gate` exit 1 whose output shows the gate itself failed to run);
 - `tf pr merge` refuses, for example because the PR's base is not the base
   branch;
 - the disagreement is about what the requirement says rather than whether

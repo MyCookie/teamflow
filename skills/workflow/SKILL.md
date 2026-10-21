@@ -155,7 +155,7 @@ branches happens in separate worktrees.
 | One reviewer per PR | `tf pr claim`: a lock | `tf pr claim`: a pending `teamflow/code-review` status on the head |
 | Gate at review | The reviewer runs `scripts/gate.sh` (`tf pr gate`) | CI's required checks on the head (`tf pr gate`); no second local run |
 | Verdict | Recorded against the reviewed head SHA | A PR comment plus a `teamflow/code-review` status on that SHA |
-| Merge | `tf pr merge` merges into the base branch; nothing is pushed | With a ruleset, `tf pr merge` enables auto-merge and GitHub merges once required checks pass; without one, `tf` checks the CI `gate` check and the verdict itself, then merges (waiting for pending CI like `tf pr gate`, so it needs the same long Bash timeout) |
+| Merge | `tf pr merge` merges into the base branch; nothing is pushed | With a ruleset, `tf pr merge` enables auto-merge and GitHub merges once required checks pass; without one, `tf` checks the CI `gate` check and the verdict itself, then merges, waiting for pending CI like `tf pr gate`. Every GitHub `tf pr merge` can block up to `TF_GATE_WAIT`, so it needs the long Bash timeout |
 | Stacked PR after its dependency merges | `tf` retargets it to the base branch | GitHub retargets it, because adoption deletes merged branches (`delete_branch_on_merge`); without that it stays on the old base |
 
 A repository that adopted `github` but lacks `gh`, its login, or a GitHub
@@ -169,7 +169,7 @@ Exit codes: 0 ok, 1 error, 2 setup or usage problem, 3 refused because of PR
 state (claimed, moved head, no approval, or after the wait of `tf pr gate` or
 `tf pr merge`, CI still running or unreadable). Exit 3 is a STOP, not a retry
 signal. `tf pr gate` exits 1 for a red gate in both modes (locally, any nonzero
-result of `scripts/gate.sh`). On GitHub it reports a red check as soon as every
+result of `scripts/gate.sh`, so also a gate that could not run: read its output). On GitHub it reports a red check as soon as every
 check has finished, but a missing `gate` check (exit 2), unreadable CI and
 pending checks (exit 3) only after the full `TF_GATE_WAIT`.
 

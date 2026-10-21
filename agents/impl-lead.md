@@ -139,9 +139,10 @@ The implementer cannot spawn a reviewer and never merges. For each PR:
    `SendMessage(to: "<its name>")` and the findings, wait for its fix, then
    spawn a new reviewer.
 5. An approved PR that stays unmerged on GitHub because it is behind the
-   base branch (the teamflow ruleset requires branches to be up to date):
-   resume the implementer to merge the base branch into its branch (never
-   rebase or force-push), then run a new round; the old verdict was for the
+   base branch (the teamflow ruleset requires branches to be up to date;
+   `tf pr view` does not show this, so use the git check under "Queued
+   merge" in the workflow skill, Handoffs, Release): resume the implementer
+   to merge the base branch into its branch (never rebase or force-push), then run a new round; the old verdict was for the
    old head.
 6. Stop and escalate to @manager at five rounds, when a finding is
    re-argued without new evidence, or when the dispute is about what the

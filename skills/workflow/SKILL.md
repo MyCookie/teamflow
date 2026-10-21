@@ -75,13 +75,21 @@ author's say-so.**
       the release line names.
   - *Queued merge.* No human is involved and nobody polls. Once a reviewer
     reports `APPROVE` with an auto-merge queued, impl-lead runs `tf pr gate
-    <N>` once. That one blocking call lasts at most `TF_GATE_WAIT` (default
-    480 s) and needs the long Bash timeout. Then it runs `tf pr view <N>`:
-    merged, continue; behind the base branch, impl-lead's Review handoff rule
-    for that applies (merge the base in, a new round); anything else (gate
-    red, exit 3, still open right after the gate returns) means the PR
-    *stays unmerged*: impl-lead escalates it to @manager and does not wait a
-    second time.
+    <N>` once. That one blocking call waits for about `TF_GATE_WAIT` (default
+    480 s; the last poll and the calls after it add to that) and needs the
+    long Bash timeout. Then it runs `tf pr view <N>`, which shows state, not
+    whether the branch is behind the base. If the PR is merged, continue. If
+    it is open, impl-lead checks for "behind" with git in the main worktree
+    (`<remote>` is the configured remote, `origin` by default): `git fetch
+    --quiet <remote> <base> <branch>`, then `git merge-base --is-ancestor
+    <remote>/<base> <remote>/<branch>`. A nonzero result means the
+    base moved on and the ruleset holds the merge: impl-lead's Review handoff
+    rule for that applies (merge the base in, a new round). Otherwise it runs
+    `tf pr view <N>` once more, without waiting: GitHub can merge a moment
+    after the checks finish (the delay was not measured). Anything still not
+    merged (gate red, exit 3, open and up to date) means the PR *stays
+    unmerged*: impl-lead escalates it to @manager and does not wait a second
+    time.
   - *Unmerged.* If any unit, the release PR or the carrying PR is escalated
     or stays unmerged, impl-lead does not hold the report: it spawns no
     release unit and reports at once, naming the unmerged PR in the report

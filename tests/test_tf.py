@@ -392,6 +392,14 @@ class GitHubFlow(unittest.TestCase):
         self.assertIn("#1", self.ok("issue", "list", "--label", "area:docs", "--label", "type:bug"))
         self.assertEqual(self.ok("issue", "list", "--label", "area:docs"), "")
 
+    def test_pr_view_shows_the_merge_state(self):
+        self.open_pr()
+        self.assertIn("merge state: clean", self.ok("pr", "view", "2"))
+        state = self.gh_state()
+        state["prs"]["2"]["merge_state"] = "BEHIND"
+        self.state.write_text(json.dumps(state))
+        self.assertIn("merge state: behind", self.ok("pr", "view", "2"))
+
     def test_claim_gate_review_and_unenforced_merge(self):
         head = self.open_pr()
         self.assertIn("files: app.txt", self.ok("pr", "view", "2"))

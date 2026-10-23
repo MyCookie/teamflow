@@ -400,8 +400,8 @@ class GitHub:
     def api(self, *args):
         return run("gh", "api", *args)
 
-    def head(self, n):
-        return json.loads(self.gh("pr", "view", str(n), "--json", "headRefOid,headRefName,baseRefName,state,title,body,files"))
+    def head(self, n, extra=""):
+        return json.loads(self.gh("pr", "view", str(n), "--json", "headRefOid,headRefName,baseRefName,state,title,body,files" + extra))
 
     def statuses(self, sha):
         data = json.loads(self.api(f"repos/{self.slug}/commits/{sha}/status"))
@@ -452,11 +452,11 @@ class GitHub:
             print(f"#{p['number']}\t{p['title']}\t{p['headRefName']} -> {p['baseRefName']}")
 
     def pr_view(self, n):
-        pr = self.head(n)
+        pr = self.head(n, ",mergeStateStatus")
         latest = self.statuses(pr["headRefOid"])
         review = f"{latest[0]['state']} ({latest[0]['description']})" if latest else "none"
         print(f"#{n} {pr['title']}\nstate: {pr['state'].lower()}\nbranch: {pr['headRefName']} -> {pr['baseRefName']}\n"
-              f"head: {pr['headRefOid']}\n{STATUS}: {review}\n"
+              f"head: {pr['headRefOid']}\n{STATUS}: {review}\nmerge state: {pr['mergeStateStatus'].lower()}\n"
               f"files: {', '.join(f['path'] for f in pr['files']) or '-'}\n\n{pr['body']}")
 
     def pr_checkout(self, n):

@@ -58,7 +58,8 @@ def pr_json(state, n):
     head = git("rev-parse", f"refs/heads/{p['head']}")
     files = git("diff", "--name-only", f"{p['base']}...{head}").split()
     return {"title": p["title"], "body": p["body"], "state": p["state"], "headRefName": p["head"],
-            "baseRefName": p["base"], "headRefOid": head, "files": [{"path": f} for f in files]}
+            "baseRefName": p["base"], "headRefOid": head, "files": [{"path": f} for f in files],
+            "mergeStateStatus": p.get("merge_state", "CLEAN")}
 
 
 def main():
@@ -118,7 +119,8 @@ def main():
             print(json.dumps([{"number": int(n), "title": p["title"], "headRefName": p["head"], "baseRefName": p["base"]}
                               for n, p in state["prs"].items() if p["state"] == "OPEN"]))
         elif verb == "view":
-            print(json.dumps(pr_json(state, rest[0])))
+            wanted = (opt(rest, "--json") or "").split(",")
+            print(json.dumps({k: v for k, v in pr_json(state, rest[0]).items() if k in wanted}))
         elif verb == "checks":
             if "--required" in rest and (state.get("required_errors", 0) > 0
                                          or time.time() < state.get("required_errors_until", 0)):

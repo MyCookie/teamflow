@@ -166,9 +166,10 @@ Report to the human:
 - Total iterations completed
 - Total PRs opened and merged
 - The released version, or that no release happened, and whether the human
-  skipped the update. Merged shipped-path changes left by an unmerged batch,
-  and merge-review merges, are not tracked (workflow rules, Handoffs,
-  Release): say that they ship with the next release, not a list.
+  skipped the update. Only if a report this run named an unmerged PR (an
+  "unmerged" release line, or an unmerged PR in a report body): merged
+  shipped-path changes left behind are not tracked and ship with the next
+  release (workflow rules, Handoffs, Release). Otherwise say nothing of it.
 - Remaining open Issues (count + links)
 - Whether the loop ended clean or hit a bound
 - Suggest next steps if Issues remain

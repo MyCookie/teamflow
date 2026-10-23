@@ -61,7 +61,8 @@ author's say-so.**
     (a `tf` exit code, command, flag or output an agent prompt depends on; a
     workflow rule; an agent's steps), patch otherwise.
   - *Sequencing.* "Merged" means `tf pr view <N>` shows the PR merged; a
-    queued auto-merge is not merged. The release unit is branched from
+    queued auto-merge is not merged (Review and merge, *Queued merge*, makes
+    it merged). The release unit is branched from
     up-to-date `main` (never stacked) after every other unit has merged, then
     reviewed and merged like any PR, all before impl-lead reports. On GitHub
     units merge remotely, so the main worktree must be fast-forwarded
@@ -73,30 +74,6 @@ author's say-so.**
     - *Report*: read on `main` after the bumping PR (release unit or carrying
       PR) has merged, after the fast-forward on GitHub. This is the version
       the release line names.
-  - *Queued merge.* No human is involved and nobody polls. Once a reviewer
-    reports `APPROVE` with an auto-merge queued, impl-lead runs `tf pr gate
-    <N>` once. That one blocking call returns as soon as every check has
-    finished; only while CI is pending does it wait, up to about
-    `TF_GATE_WAIT` (default 480 s; the last poll and the calls after it add
-    to that). It needs the long Bash timeout. Then it runs `tf pr view <N>`,
-    which shows state, not whether the branch is behind the base. If the PR
-    is merged, continue. If it is open, impl-lead checks for "behind" with
-    git in the main worktree (`<remote>` is the configured remote, `origin`
-    by default): `git fetch --quiet <remote> <base> <branch>`, then `git
-    merge-base --is-ancestor <remote>/<base> <remote>/<branch>`. Outcomes:
-    - Ancestor check exits 1: the base moved on and the ruleset holds the
-      merge. impl-lead's Review handoff rule for that applies (merge the base
-      in, a new round).
-    - Ancestor check exits 0: up to date. Run `tf pr view <N>` once more,
-      without waiting: GitHub can merge a moment after the checks finish (the
-      delay was not measured). Still not merged means the PR *stays
-      unmerged*: impl-lead escalates it to @manager and does not wait a
-      second time. Gate red or exit 3 from `tf pr gate` ends the same way.
-    - The fetch fails, or the check exits with any other code: "behind" is
-      not verified. Run `tf pr view <N>` once more (a PR merged just before
-      the check has its branch deleted, so the fetch fails). Merged,
-      continue; otherwise treat it as *stays unmerged* and say in the
-      escalation that the check could not run.
   - *Unmerged.* If any unit, the release PR or the carrying PR is escalated
     or stays unmerged, impl-lead does not hold the report: it spawns no
     release unit and reports at once, naming the unmerged PR in the report
@@ -316,7 +293,33 @@ evidence.
 - **A verdict is for one commit.** A push after an approval needs a new
   review; `tf` refuses to merge a head nobody approved.
 - **Stacked PRs** are reviewed in dependency order: spawn a stacked PR's
-  reviewer only once it targets the base branch.
+  reviewer only once it targets the base branch. A dependency that is
+  escalated or stays unmerged (see *Queued merge*) leaves its stacked PR
+  unreviewed; impl-lead escalates that PR too.
+- **Queued merge** (GitHub with the ruleset; locally `tf pr merge` merges
+  at once). A queued auto-merge has no event source, so impl-lead drives it
+  right after each `APPROVE` that leaves one, for every PR, stacked
+  dependencies included. No human is involved and nobody polls.
+  1. Run `tf pr gate <N>` once, with the long Bash timeout. When it returns
+     is described in the exit-code paragraph of "Issues and PRs: `tf`".
+     Exit 0: go to 2. Exit 1 (red), 2 (no `gate` check) or 3 (CI pending or
+     unreadable after the wait): the PR *stays unmerged*. Escalate to
+     @manager with the output; `tf pr view` and step 2 do not run.
+  2. Run `tf pr view <N>`. `state: merged`: done. Otherwise read its
+     `merge state:` line (GitHub's `mergeStateStatus`, lowercased).
+     - `behind`: the base moved on and the ruleset holds the merge. Resume
+       the implementer to merge the base into its branch (never rebase or
+       force-push) and run a new round. That round's `APPROVE` queues a new
+       auto-merge, so this procedure runs again for it, including one new
+       `tf pr gate`. Review handoff's five-round limit bounds the loop.
+     - Any other value: run `tf pr view <N>` once more, without waiting,
+       because GitHub can merge a moment after the checks finish. Merged:
+       done. Still open: the PR *stays unmerged*. Escalate to @manager and
+       do not wait a second time. The escalation may be spurious, because
+       the merge delay was not measured.
+  The `merge state:` values are expected, not observed: `behind` for a
+  branch the base has moved past is what GitHub's field is documented to
+  give, but no one has run `gh` against a live PR here.
 - **Rework:** on `REQUEST_CHANGES` the implementer fixes every `blocker` and
   `major` on the same branch, re-runs the gate, and on GitHub pushes the
   fix; a new reviewer re-reviews everything. A suggested fix is an argument, not a tested patch.

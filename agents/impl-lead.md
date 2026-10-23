@@ -84,7 +84,8 @@ idle-notification result or a `[Subagent hand-back]`. Answer it with
 1. Verify each PR references its Issues correctly, then run the Review
    handoff for it. A PR is done when its `code-reviewer` round ends in
    `APPROVE` and `tf pr view <N>` shows it merged, not when it is opened or
-   its auto-merge is queued. Then run "Release unit".
+   its auto-merge is queued (Review handoff step 4 drives a queued merge to
+   that point). Then run "Release unit".
 2. Message @manager: the PRs, the Issues each closes, each PR's final
    verdict, any that failed or were escalated. End with the release line the
    workflow rules define (Handoffs, Release).
@@ -96,15 +97,16 @@ The rule is in the workflow skill (Handoffs, Release); this is your part.
 Never stack the release unit: it depends on several units, so it has no
 single branch to stack on.
 
-1. Queued merges: apply "Queued merge" (workflow skill, Handoffs, Release)
-   to each approved PR whose auto-merge is queued. Do not ask the human to
-   message you. A PR that stays unmerged is escalated to @manager, and you
-   do not wait on it again.
+1. Check that every unit's PR is merged with `tf pr view <N>`. Queued merges
+   were already driven in Review handoff step 4; do not ask the human to
+   message you.
 2. If a unit stays escalated or unmerged and no bump has merged, spawn
    nothing and report with the "unmerged" release line. If the carrying PR
    merged, go to step 5 for the version, then report the version line and
    name the unmerged PR in the body.
-3. Re-check whether the merged units touched a shipped path. If so and no
+3. If a unit carries the bump and every unit merged, go to step 5: there is
+   no release unit, so skip the rest of this step and step 4. Otherwise
+   re-check whether the merged units touched a shipped path. If so and no
    unit carries the bump, update `main` as the rule says (on GitHub,
    `git pull --ff-only` in the main worktree), read `version` from
    `.claude-plugin/plugin.json` (the bump-from version), and branch the
@@ -127,7 +129,10 @@ single branch to stack on.
 The implementer cannot spawn a reviewer and never merges. For each PR:
 
 1. Check the base: `tf pr view <N>`. If it does not target the base
-   branch, it is stacked on an unmerged dependency; wait.
+   branch, it is stacked on an unmerged dependency. Review that dependency
+   first; its queued merge is driven in step 4. Once it merged, GitHub has
+   retargeted the PR. If the dependency is escalated or stays unmerged,
+   escalate this PR too and spawn no reviewer.
 2. Claim it: `tf pr claim <N>`. If it refuses, another reviewer holds it;
    do not spawn a second.
 3. Spawn a fresh reviewer for each round, never reusing one:
@@ -136,16 +141,16 @@ The implementer cannot spawn a reviewer and never merges. For each PR:
    undermines the reviewer's independence.
 4. When it returns, release the claim first: `tf pr release <N>`, also if
    it died without a verdict. On `APPROVE` it has merged, or on GitHub queued
-   an auto-merge that lands once required checks pass; remove the unit's
-   worktree once `tf pr view <N>` shows it merged. On `REQUEST_CHANGES`,
-   resume the implementer with `SendMessage(to: "<its name>")` and the findings, wait for its fix, then
+   an auto-merge that lands once required checks pass. For a queued
+   auto-merge, apply "Queued merge" (workflow skill, Review and merge) right
+   away. Remove the unit's worktree once `tf pr view <N>` shows it merged.
+   On `REQUEST_CHANGES`, resume the implementer with
+   `SendMessage(to: "<its name>")` and the findings, wait for its fix, then
    spawn a new reviewer.
-5. An approved PR that stays unmerged on GitHub because it is behind the
-   base branch (the teamflow ruleset requires branches to be up to date;
-   `tf pr view` does not show this, so use the git check under "Queued
-   merge" in the workflow skill, Handoffs, Release): resume the implementer
-   to merge the base branch into its branch (never rebase or force-push),
-   then run a new round; the old verdict was for the old head.
+5. An approved PR whose `merge state:` reads `behind` (Queued merge step 2):
+   resume the implementer to merge the base branch into its branch (never
+   rebase or force-push), then run a new round; the old verdict was for the
+   old head. The new round's `APPROVE` runs step 4 again.
 6. Stop and escalate to @manager at five rounds, when a finding is
    re-argued without new evidence, or when the dispute is about what the
    Issue requires. Never merge a PR yourself and never report a verdict the

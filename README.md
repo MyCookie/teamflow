@@ -156,8 +156,9 @@ once, in [`skills/workflow/SKILL.md`](skills/workflow/SKILL.md), Handoffs,
   The release sequencing, the four release-line forms, the manager's check of
   the line and the main-worktree update step have not been run by a live
   impl-lead and manager. Also not run: `tf pr gate` on a PR whose
-  auto-merge is already queued, and the `merge state:` values from
-  `tf pr view` against a live PR (`behind` is expected, not observed). The
+  auto-merge is already queued, and the `merge state:` value `behind`
+  from `tf pr view` (only `blocked` on an open PR and `unknown` on a merged
+  PR were observed; `behind` is expected, not observed). The
   Queued merge procedure as a whole, and whether the one re-read of
   `tf pr view` is enough given the unmeasured merge delay, have not been
   run by a live impl-lead.

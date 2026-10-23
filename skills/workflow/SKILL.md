@@ -305,8 +305,9 @@ evidence.
      Exit 0: go to 2. Exit 1 (red), 2 (no `gate` check) or 3 (CI pending or
      unreadable after the wait): the PR *stays unmerged*. Escalate to
      @manager with the output; `tf pr view` and step 2 do not run.
-  2. Run `tf pr view <N>`. `state: merged`: done. Otherwise read its
-     `merge state:` line (GitHub's `mergeStateStatus`, lowercased).
+  2. Run `tf pr view <N>`. `state: merged`: done, ignoring `merge state:`.
+     Otherwise (open) read its `merge state:` line (GitHub's
+     `mergeStateStatus`, lowercased).
      - `behind`: the base moved on and the ruleset holds the merge. Resume
        the implementer to merge the base into its branch (never rebase or
        force-push) and run a new round. That round's `APPROVE` queues a new
@@ -317,9 +318,13 @@ evidence.
        done. Still open: the PR *stays unmerged*. Escalate to @manager and
        do not wait a second time. The escalation may be spurious, because
        the merge delay was not measured.
-  The `merge state:` values are expected, not observed: `behind` for a
-  branch the base has moved past is what GitHub's field is documented to
-  give, but no one has run `gh` against a live PR here.
+  Observed `merge state:` values (a reviewer ran `tf pr view` against real
+  PRs): `blocked` on an open PR before it merged, `unknown` on a merged PR.
+  `behind` was not observed; it is expected for a branch the base has moved
+  past, from GitHub's documented `mergeStateStatus`. The `state:` line
+  decides first: a merged PR is done whatever `merge state:` reads, so
+  `unknown` there is never "not behind". Only an open PR is judged by
+  `merge state:`.
 - **Rework:** on `REQUEST_CHANGES` the implementer fixes every `blocker` and
   `major` on the same branch, re-runs the gate, and on GitHub pushes the
   fix; a new reviewer re-reviews everything. A suggested fix is an argument, not a tested patch.

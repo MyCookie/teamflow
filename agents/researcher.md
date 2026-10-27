@@ -8,7 +8,7 @@ description: >
 model: claude-sonnet-5-5
 effort: high
 tools: Read, Grep, Glob, Bash, WebFetch, WebSearch, SendMessage
-disallowedTools: Edit, Write, MultiEdit, mcp__github
+disallowedTools: Edit, Write, MultiEdit, mcp__github, Bash(tf issue edit *)
 isolation: worktree
 skills: teamflow:workflow
 maxTurns: 60

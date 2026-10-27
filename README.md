@@ -77,17 +77,26 @@ unset, and `teamflow-config` prints the effective values:
 ```json
 { "forge": "local", "remote": "origin", "base": "main", "tdd": "required",
   "teamflow_auto_approve": "low",
-  "loop": { "max_iterations": 3, "exit_severity_threshold": "medium",
-            "human_checkpoint": "every_cycle", "max_open_issues_to_continue": 0 } }
+  "loop": { "exit_severity_threshold": "medium", "max_open_issues_to_continue": 0 } }
 ```
 
 `tdd` is `required` or `recommended`: how strictly reviewers grade missing
 red/green evidence. `teamflow_auto_approve` is `low` (default) or `none`:
-under `low` the manager skips the plan approval and the loop checkpoint for
+under `low` the manager skips the plan approval and the per-cycle question for
 a batch of only `severity:low` Issues, does not stop the loop on the
 severity threshold for such a batch, and asks for the plugin update once at
 the end instead of before review; the workflow skill defines the
 conditions. `none` turns it off. This flow has not been run live.
+
+**Migrating:** `loop.max_iterations` and `loop.human_checkpoint` are removed.
+A `.claude/teamflow.json` that still sets either makes `teamflow-config`, and
+so every `tf` command, exit 2 with `unknown key '...'` (covered by a test);
+delete the key. In their place the loop ends when a cycle files more new
+Issues than its merged PRs closed (equal counts continue), and the manager
+still asks the human after every cycle, except under the all-low
+auto-approval notice. An iteration that ends with an escalated or unmerged PR
+pauses the loop until the human resolves it. These loop rules have not been
+run live.
 
 `tf` and `teamflow-config` read the file from the main worktree, which must stay on the base branch (`tf` stops otherwise), so a
 PR under review can't change the rules its own review runs under. Work on

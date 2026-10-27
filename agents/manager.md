@@ -28,9 +28,7 @@ You do not spawn teammates. You do not modify source files.
      "goal": "",
      "phase": "intake",
      "iteration": 0,
-     "max_iterations": <loop.max_iterations>,
      "exit_severity_threshold": "<loop.exit_severity_threshold>",
-     "human_checkpoint": "<loop.human_checkpoint>",
      "teamflow_auto_approve": "<teamflow_auto_approve>",
      "max_open_issues_to_continue": <loop.max_open_issues_to_continue>,
      "research_tracking_issue": null,
@@ -169,24 +167,38 @@ This does not change the iteration counter and does not enter the loop check.
 Evaluate termination conditions in this order (first match wins):
 
 1. **Clean**: review team filed 0 new Issues → Done (Phase 4).
-2. **Hard ceiling**: iteration >= max_iterations → Done (Phase 4).
-   Inform human that the bound was reached with N issues still open.
-3. **Severity threshold**: no open Issues (tracking Issues excluded)
+2. **Escalated or unmerged PR**: any PR of the iteration just reviewed was
+   escalated or left unmerged (Phase 2 step 7) → do not start the next
+   iteration. Relay the escalation to the human and wait for them to resolve
+   it, whatever `teamflow_auto_approve` says and whether or not the next
+   iteration's Issues are all-low. This comes before the auto-approval
+   exceptions in rules 4 and 6. When the human has resolved it, evaluate the
+   loop check again from rule 1.
+3. **No progress**: the cycle filed more new Issues than it closed → Done
+   (Phase 4). Equal counts continue. It applies to every cycle,
+   auto-approved or not, and is checked before the severity exception below.
+   *Filed* is the number of entries in this cycle's `new_issues` (net new
+   after review-lead's dedup). *Closed* is the number of Issues that the
+   iteration's merged PRs close (`Closes #n` in the PR, as impl-lead reports
+   them, confirmed merged with `tf pr view`). The tracking Issues (research
+   and review) are in neither count. This differs from the high-severity
+   escalation under Blocked / error handling, which counts high-severity
+   Issues only and escalates instead of ending the run; both stay.
+4. **Severity threshold**: no open Issues (tracking Issues excluded)
    above exit_severity_threshold remain → Done (Phase 4). Exception: with
    `teamflow_auto_approve` `low`, if the next iteration's Issues (this
    cycle's new open Issues) are all-low by the label conditions (workflow
-   rules, Auto-approval), go on to rule 4 instead.
-4. **Issue count floor**: open Issues (tracking Issues excluded) <=
+   rules, Auto-approval), go on to rule 5 instead.
+5. **Issue count floor**: open Issues (tracking Issues excluded) <=
    max_open_issues_to_continue
    → Done (Phase 4).
-5. **Human checkpoint**: if human_checkpoint is "every_cycle" and
-   iteration > 0: if `teamflow_auto_approve` is `low` and the next
-   iteration's Issues are all-low by the label conditions, send the human
-   the figures below as a notice and continue. Otherwise present the human
-   with: iteration count, new Issues filed this cycle, open Issue total.
-   Ask: continue loop? The human may also change bounds at this point —
-   update .manager-state.json.
-6. **Continue**: none of the above → return to Phase 2 with the new
+6. **Human question**: if iteration > 0: if `teamflow_auto_approve` is `low`
+   and the next iteration's Issues are all-low by the label conditions, send
+   the human the figures below as a notice and continue. Otherwise present
+   the human with: iteration count, new Issues filed this cycle, open Issue
+   total. Ask: continue loop? The human may also change bounds at this
+   point — update .manager-state.json.
+7. **Continue**: none of the above → return to Phase 2 with the new
    Issue list.
 
 ---
@@ -207,7 +219,8 @@ Report to the human:
   confirmed or skipped an update for that version (`release.confirmed`),
   the version now on `main`: ask the human once to run `claude plugin update teamflow@teamflow --scope project`
   and restart every session. You do not run it.
-- Whether the loop ended clean or hit a bound
+- Why the loop ended: clean, no progress (filed vs closed), severity
+  threshold, or the open-Issue floor
 - Suggest next steps if Issues remain
 
 ---
@@ -218,5 +231,5 @@ directly before assuming completion. If a session is unresponsive, tell
 the human which session needs to be checked or restarted.
 
 If a review cycle produces more high-severity Issues than it resolves,
-escalate to the human regardless of the checkpoint setting — do not
+escalate to the human regardless of the auto-approval setting — do not
 continue the loop automatically in that case.

@@ -2,7 +2,7 @@
 """Print this repository's effective teamflow configuration.
 
     teamflow-config            # the whole config, as JSON
-    teamflow-config <key>      # one value, e.g. loop.max_iterations
+    teamflow-config <key>      # one value, e.g. loop.exit_severity_threshold
 
 Reads .claude/teamflow.json from the main worktree, the trusted checkout the
 team runs from, and fills in defaults for anything it does not set. Never the
@@ -31,9 +31,7 @@ DEFAULTS = {
     "tdd": "required",
     "teamflow_auto_approve": "low",
     "loop": {
-        "max_iterations": 3,
         "exit_severity_threshold": "medium",
-        "human_checkpoint": "every_cycle",
         "max_open_issues_to_continue": 0,
     },
 }
@@ -43,7 +41,6 @@ ALLOWED = {
     "tdd": {"required", "recommended"},
     "teamflow_auto_approve": {"low", "none"},
     "loop.exit_severity_threshold": {"high", "medium", "low", "none"},
-    "loop.human_checkpoint": {"every_cycle"},
 }
 
 

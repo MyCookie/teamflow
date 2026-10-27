@@ -76,12 +76,16 @@ unset, and `teamflow-config` prints the effective values:
 
 ```json
 { "forge": "local", "remote": "origin", "base": "main", "tdd": "required",
+  "teamflow_auto_approve": "low",
   "loop": { "max_iterations": 3, "exit_severity_threshold": "medium",
             "human_checkpoint": "every_cycle", "max_open_issues_to_continue": 0 } }
 ```
 
 `tdd` is `required` or `recommended`: how strictly reviewers grade missing
-red/green evidence. `tf` and `teamflow-config` read the file from the main
+red/green evidence. `teamflow_auto_approve` is `low` (default) or `none`:
+under `low` the manager skips the plan approval and the loop checkpoint for
+a batch of only `severity:low` Issues, with conditions the workflow skill
+defines; `none` turns it off. This flow has not been run live. `tf` and `teamflow-config` read the file from the main
 worktree, which must stay on the base branch (`tf` stops otherwise), so a
 PR under review can't change the rules its own review runs under. Work on
 other branches in separate worktrees.

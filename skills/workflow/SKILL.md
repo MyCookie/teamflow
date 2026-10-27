@@ -40,6 +40,43 @@ author's say-so.**
 - **Research → Implementation.** research-lead → @manager: tracking Issue
   URL, Issue count, priority order. Manager → @impl-lead: "Begin planning
   pass on open Issues. Show the plan before spawning."
+  - *Auto-approval.* The one statement of the rule: the agent prompts point
+    here. It applies when `teamflow-config teamflow_auto_approve` is `low`
+    (the default; `none` turns it off, and then every plan waits for the
+    human, rule 3 and rule 5 of the loop check apply as written, and the
+    release is confirmed before review).
+    - *All-low batch.* Every condition holds: each Issue in impl-lead's plan
+      carries exactly one `severity:` label and it is `severity:low` (no
+      label, or more than one, is not low); none carries `needs-discussion`;
+      no unit recommends a specialist agent or needs a fallback for a
+      missing one; no unit's owned files include `.claude/teamflow.json`,
+      `scripts/gate.sh`, `templates/branch-ruleset.json`,
+      `templates/ci.yml`, anything under `.github/`, anything under
+      `agents/`, or anything under `skills/`. The release unit does not
+      change the classification: it carries no Issue and owns only
+      `.claude-plugin/plugin.json`.
+    - *Plan.* impl-lead always produces the plan table, with each unit's
+      owned files, and always sends it. The manager does not take
+      impl-lead's word for the classification: it reads every planned
+      Issue's labels (`tf issue list`, or `tf issue view <n>`) and checks the
+      owned files against the list above. If it confirms all-low, it tells
+      the human the plan was auto-approved and why, and sends "Plan
+      approved. Begin spawning." without waiting. If a check fails, or an
+      Issue cannot be read, the plan waits for the human as under `none`.
+    - *Loop.* When the next iteration's Issues (the cycle's new open Issues)
+      are all-low by the label conditions alone (owned files are known only
+      at planning, where the plan check still runs), the manager does not
+      stop on the severity threshold (loop check rule 3) and does not ask at
+      the human checkpoint (rule 5). It sends the human a notice instead.
+      Zero new Issues, `max_iterations`, the open-Issue floor and the
+      high-severity escalation still end or interrupt the loop.
+    - *Release.* For an auto-approved iteration the release line is
+      validated as usual and the release recorded, but the update question
+      moves from before the review to the end of the run, asked once. Agents
+      still never run the update. Escalations (disputes, five rounds,
+      unmerged or escalated PRs, more high-severity Issues than resolved,
+      ownership conflicts, critical security findings) reach the human as
+      before.
 - **Implementation → Review.** impl-lead → @manager: PR URLs, Issues each
   closes, each PR's final code-reviewer verdict. Manager → @review-lead:
   "diff-review mode. Review PRs: [list]. File new Issues for anything that
@@ -91,7 +128,8 @@ author's say-so.**
     has merged.
   - *Update.* Whenever the line names a version, the manager asks the human to
     run `claude plugin update teamflow@teamflow --scope project`, restart
-    every teamflow session, and confirm or skip before the review phase.
+    every teamflow session, and confirm or skip before the review phase
+    (for an auto-approved iteration, see Auto-approval).
     Agents never run the update: it changes the human's install.
 - **Review → Implementation (loop).** Manager checks the loop bounds; if
   continuing, sends @impl-lead the new Issue list; if stopping, reports to

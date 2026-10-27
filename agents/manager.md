@@ -21,6 +21,7 @@ You do not spawn teammates. You do not modify source files.
 0. Load the `teamflow:workflow` skill before anything else.
 1. Read the loop bounds with `teamflow-config loop`. They come from the
    repository's `.claude/teamflow.json`, with defaults for anything unset.
+   Also read `teamflow-config teamflow_auto_approve` (`low` or `none`).
 2. Load or initialise .manager-state.json:
    ```json
    {
@@ -30,10 +31,12 @@ You do not spawn teammates. You do not modify source files.
      "max_iterations": <loop.max_iterations>,
      "exit_severity_threshold": "<loop.exit_severity_threshold>",
      "human_checkpoint": "<loop.human_checkpoint>",
+     "teamflow_auto_approve": "<teamflow_auto_approve>",
      "max_open_issues_to_continue": <loop.max_open_issues_to_continue>,
      "research_tracking_issue": null,
      "impl_prs": [],
      "release": null,
+     "iterations": [],
      "review_issues_per_cycle": [],
      "sessions_ready": []
    }
@@ -42,8 +45,13 @@ You do not spawn teammates. You do not modify source files.
    release confirmation is pending (Phase 2 step 7), set to `confirmed: true`
    when the human confirms or skips. Each `review_issues_per_cycle` entry is
    `{"iteration": <n>, "new_issues": [<numbers>], "tracking": <number>}`.
-   If `release` exists with `confirmed: false`, you were restarted mid-release:
-   resume the wait and ask the human to confirm or skip before Phase 3.
+   Each `iterations` entry is `{"iteration": <n>, "auto_approved": <bool>}`;
+   an auto-approved iteration with a version in its release line also has
+   `"deferred_release": "<version>"` (Phase 2 step 7, Phase 4).
+   If `release` exists with `confirmed: false` and its iteration was not
+   auto-approved, you were restarted mid-release: resume the wait and ask the
+   human to confirm or skip before Phase 3. A deferred release is not a wait:
+   do not stop for it, ask for it at Phase 4.
 3. Confirm which sessions are running (`ListAgents`). Tell the human
    which leads need to be started before proceeding.
 
@@ -83,7 +91,15 @@ Write the decision and goal to .manager-state.json before proceeding.
 2. Message @impl-lead: "Begin planning pass on open Issues. Show your
    plan before spawning any implementation teammates."
 3. Wait for @impl-lead to surface its plan.
-4. Relay the plan to the human. Wait for explicit approval.
+4. If `teamflow_auto_approve` is `low`, check the plan yourself (workflow
+   rules, Handoffs, Research → Implementation, Auto-approval): run
+   `tf issue list` (or `tf issue view <n>` per Issue), read the labels of
+   every Issue in the plan, and check each unit's owned files in the plan
+   table. If all-low is confirmed, relay the plan to the human as a notice
+   that it was auto-approved and why, record the iteration with
+   `auto_approved: true`, and go to step 5 without waiting. If a check fails
+   or an Issue cannot be read, or the setting is `none`, record
+   `auto_approved: false`, relay the plan and wait for explicit approval.
 5. Message @impl-lead: "Plan approved. Begin spawning."
 6. Register idle notification on @impl-lead.
 7. When @impl-lead reports: record the PRs and their verdicts in
@@ -94,10 +110,13 @@ Write the decision and goal to .manager-state.json before proceeding.
    Handoffs, Release). If the line is missing or matches none of its forms,
    or names a version that is not `version` in `.claude-plugin/plugin.json` on
    `main`, treat it as unresolved: ask @impl-lead for the line and do not
-   enter Phase 3. If it names a version, ask the human to run the update and
-   restart as the same rule says; you do not run it. Relay an "unmerged"
-   line, or an unmerged PR the report body names beside a version line, to
-   the human. Record
+   enter Phase 3. Relay an "unmerged" line, or an unmerged PR the report body
+   names beside a version line, to the human. If the line names a version and
+   this iteration was auto-approved, record `deferred_release: "<version>"`
+   on its `iterations` entry and go to Phase 3 without waiting; the update
+   question is asked once at Phase 4. Otherwise, if it names a version, ask
+   the human to run the update and restart as the workflow rule says (you do
+   not run it), record
    `release: {"version": "<version>", "confirmed": false}` in
    .manager-state.json and wait for the human to confirm or explicitly skip
    (then set `confirmed: true`) before Phase 3, so the review runs on the code
@@ -147,14 +166,20 @@ Evaluate termination conditions in this order (first match wins):
 2. **Hard ceiling**: iteration >= max_iterations → Done (Phase 4).
    Inform human that the bound was reached with N issues still open.
 3. **Severity threshold**: no open Issues (tracking Issues excluded)
-   above exit_severity_threshold remain → Done (Phase 4).
+   above exit_severity_threshold remain → Done (Phase 4). Exception: with
+   `teamflow_auto_approve` `low`, if the next iteration's Issues (this
+   cycle's new open Issues) are all-low by the label conditions (workflow
+   rules, Auto-approval), go on to rule 4 instead.
 4. **Issue count floor**: open Issues (tracking Issues excluded) <=
    max_open_issues_to_continue
    → Done (Phase 4).
 5. **Human checkpoint**: if human_checkpoint is "every_cycle" and
-   iteration > 0, present the human with: iteration count, new Issues
-   filed this cycle, open Issue total. Ask: continue loop? The human
-   may also change bounds at this point — update .manager-state.json.
+   iteration > 0: if `teamflow_auto_approve` is `low` and the next
+   iteration's Issues are all-low by the label conditions, send the human
+   the figures below as a notice and continue. Otherwise present the human
+   with: iteration count, new Issues filed this cycle, open Issue total.
+   Ask: continue loop? The human may also change bounds at this point —
+   update .manager-state.json.
 6. **Continue**: none of the above → return to Phase 2 with the new
    Issue list.
 
@@ -171,6 +196,10 @@ Report to the human:
   shipped-path changes left behind are not tracked and ship with the next
   release (workflow rules, Handoffs, Release). Otherwise say nothing of it.
 - Remaining open Issues (count + links)
+- The iterations that ran without approval (`auto_approved: true`) and, if
+  any iteration has a `deferred_release`, the version now on `main`: ask the
+  human once to run `claude plugin update teamflow@teamflow --scope project`
+  and restart every session. You do not run it.
 - Whether the loop ended clean or hit a bound
 - Suggest next steps if Issues remain
 

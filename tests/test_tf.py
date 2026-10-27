@@ -294,6 +294,30 @@ class LocalFlow(unittest.TestCase):
         self.assertEqual(result.returncode, 2, result.stderr)
         self.assertIn("'tdd' must be one of", result.stderr)
 
+    def test_auto_approve_defaults_to_low_and_accepts_only_two_values(self):
+        config = str(Path(TF).parent / "teamflow-config")
+        result = sh(config, "teamflow_auto_approve", cwd=self.main)
+        self.assertEqual((result.returncode, result.stdout.strip()), (0, "low"), result.stderr)
+        (self.main / ".claude").mkdir()
+        (self.main / ".claude" / "teamflow.json").write_text(json.dumps({"teamflow_auto_approve": "none"}))
+        self.assertEqual(sh(config, "teamflow_auto_approve", cwd=self.main).stdout.strip(), "none")
+        (self.main / ".claude" / "teamflow.json").write_text(json.dumps({"teamflow_auto_approve": "medium"}))
+        result = sh(config, "teamflow_auto_approve", cwd=self.main)
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("'teamflow_auto_approve' must be one of", result.stderr)
+
+    def test_human_checkpoint_accepts_only_every_cycle(self):
+        config = str(Path(TF).parent / "teamflow-config")
+        (self.main / ".claude").mkdir()
+        path = self.main / ".claude" / "teamflow.json"
+        path.write_text(json.dumps({"loop": {"human_checkpoint": "every_cycle"}}))
+        self.assertEqual(sh(config, "loop.human_checkpoint", cwd=self.main).stdout.strip(), "every_cycle")
+        for value in ("never", "first_loop_only"):
+            path.write_text(json.dumps({"loop": {"human_checkpoint": value}}))
+            result = sh(config, "loop.human_checkpoint", cwd=self.main)
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("'loop.human_checkpoint' must be one of", result.stderr)
+
     def test_bad_config_is_a_setup_problem(self):
         (self.main / ".claude").mkdir()
         (self.main / ".claude" / "teamflow.json").write_text("{not json")

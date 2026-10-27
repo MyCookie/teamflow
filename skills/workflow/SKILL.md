@@ -260,6 +260,8 @@ decision, then `tf issue edit` so the labels match it: remove
 `needs-discussion` once it is resolved, and leave exactly one `severity:`
 label. A label change records a decision and never stands in for one: no
 agent changes `severity:` or `needs-discussion` on its own judgment.
+Only the manager and the leads run `tf issue edit`; other agents report a
+label change to their lead instead.
 
 **Research Issues are typed briefs**, so implementation and review can
 check each claim:

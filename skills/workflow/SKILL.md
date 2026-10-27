@@ -43,7 +43,7 @@ author's say-so.**
   - *Auto-approval.* The one statement of the rule: the agent prompts point
     here. It applies when `teamflow-config teamflow_auto_approve` is `low`
     (the default; `none` turns it off, and then every plan waits for the
-    human, rule 3 and rule 5 of the loop check apply as written, and the
+    human, rule 4 and rule 6 of the loop check apply as written, and the
     release is confirmed before review).
     - *All-low batch.* Every condition holds: each Issue in impl-lead's plan
       carries exactly one `severity:` label and it is `severity:low` (no
@@ -67,17 +67,22 @@ author's say-so.**
     - *Loop.* When the next iteration's Issues (the cycle's new open Issues)
       are all-low by the label conditions alone (owned files are known only
       at planning, where the plan check still runs), the manager does not
-      stop on the severity threshold (loop check rule 3) and does not ask at
-      the human checkpoint (rule 5). It sends the human a notice instead.
-      Zero new Issues, `max_iterations`, the open-Issue floor and the
-      high-severity escalation still end or interrupt the loop.
+      stop on the severity threshold (loop check rule 4) and does not ask the
+      per-cycle question (rule 6). It sends the human a notice instead.
+      Zero new Issues, a cycle that files more new Issues than it closed
+      (rule 3), the open-Issue floor and the high-severity escalation still
+      end or interrupt the loop.
+    - *Pause.* An iteration that ends with any PR escalated or left unmerged
+      stops the loop from starting the next iteration (rule 2), auto-approved
+      or not, all-low or not: the manager relays the escalation and waits for
+      the human to resolve it.
     - *Release.* For an auto-approved iteration the release line is
       validated as usual and the release recorded, but the update question
       moves from before the review to the end of the run, asked once. Agents
       still never run the update. Escalations (disputes, five rounds,
       unmerged or escalated PRs, more high-severity Issues than resolved,
       ownership conflicts, critical security findings) reach the human as
-      before.
+      before (the pause above is the part of that which stops the loop).
 - **Implementation → Review.** impl-lead → @manager: PR URLs, Issues each
   closes, each PR's final code-reviewer verdict. Manager → @review-lead:
   "diff-review mode. Review PRs: [list]. File new Issues for anything that
@@ -132,10 +137,10 @@ author's say-so.**
     every teamflow session, and confirm or skip before the review phase
     (for an auto-approved iteration, see Auto-approval).
     Agents never run the update: it changes the human's install.
-- **Review → Implementation (loop).** Manager checks the loop bounds; if
+- **Review → Implementation (loop).** Manager runs the loop check; if
   continuing, sends @impl-lead the new Issue list; if stopping, reports to
   the human.
-- **Review → Done.** Zero new Issues, or bounds reached: the manager reports
+- **Review → Done.** Zero new Issues, or the loop check ends the loop: the manager reports
   final state to the human.
 
 ## Role bounds
@@ -255,6 +260,8 @@ decision, then `tf issue edit` so the labels match it: remove
 `needs-discussion` once it is resolved, and leave exactly one `severity:`
 label. A label change records a decision and never stands in for one: no
 agent changes `severity:` or `needs-discussion` on its own judgment.
+Only the manager and the leads run `tf issue edit`; other agents report a
+label change to their lead instead.
 
 **Research Issues are typed briefs**, so implementation and review can
 check each claim:

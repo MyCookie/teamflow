@@ -4,5 +4,8 @@
     "ponytail@ponytail": true,
     "mattpocock-skills@mattpocock": true
   },
-  "crossSessionInbound": "accept"
+  "crossSessionInbound": "accept",
+  "permissions": {
+    "allow": ["Bash(tf *)"]
+  }
 }

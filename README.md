@@ -48,6 +48,29 @@ and merge the branch the way you merge today. teamflow's own review flow
 starts once this is on the base branch. The `teamflow:setup` skill walks
 through it and lists the checks that the team works.
 
+**Auto mode.** In one GitHub-mode session in auto mode, the classifier
+refused `tf issue close 114` as an external system write ("[External System
+Writes]"); read-only `tf issue view` and the `tf setup` dry run were not
+refused. After `"Bash(tf *)"` was added to `permissions.allow` in
+`.claude/settings.local.json`, the same command exited 0. If auto mode stops
+your sessions the same way, add the rule once:
+
+```json
+{ "permissions": { "allow": ["Bash(tf *)"] } }
+```
+
+`.claude/settings.local.json` is per user and uncommitted, and is the file
+that was tested. The shared `.claude/settings.json` is committed and applies
+to everyone who clones; the rule there is untested, and which file to use is
+your decision. The rule allows every `tf` subcommand, including `tf pr merge`
+and `tf setup --apply`, and in the shared file it grants that to every
+collaborator's sessions. `tf setup` does not add `settings.local.json` to
+`.gitignore` (it adds only `.manager-state.json`, `.claude/worktrees/` and
+`.env`), so ignore it yourself. Not verified: whether a session already
+running picks the rule up without a restart, whether subagents in other
+worktrees inherit it, whether other `tf` writes or local mode are ever
+refused (only `tf issue close` in GitHub mode was observed).
+
 **Settings** live in `.claude/teamflow.json`; defaults apply for anything
 unset, and `teamflow-config` prints the effective values:
 

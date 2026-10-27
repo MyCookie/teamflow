@@ -39,6 +39,10 @@ You do not spawn teammates. You do not modify source files.
      "sessions_ready": []
    }
    ```
+   Each `impl_prs` entry is `{"iteration": <n>, "pr": <number>, "closes": [<issue numbers>],
+   "verdict": "<final code-reviewer verdict>", "status": "merged|escalated|unmerged"}`,
+   tagged with the iteration that opened it (Phase 2 step 7); loop check rules
+   2 and 3 and Phase 4 read it.
    `release` is `{"version": "<version>", "confirmed": false}` while a
    release confirmation is pending (Phase 2 step 7), set to `confirmed: true`
    when the human confirms or skips. Each `review_issues_per_cycle` entry is
@@ -106,10 +110,12 @@ Write the decision and goal to .manager-state.json before proceeding.
    `auto_approved: false`, relay the plan and wait for explicit approval.
 5. Message @impl-lead: "Plan approved. Begin spawning."
 6. Register idle notification on @impl-lead.
-7. When @impl-lead reports: record the PRs and their verdicts in
-   .manager-state.json. Each PR has been through code-reviewer rounds and
-   merged, or was escalated; relay any escalation to the human.
-   Increment iteration counter.
+7. When @impl-lead reports: increment the iteration counter, then add one
+   `impl_prs` entry per PR in the report to .manager-state.json, tagged with
+   the new counter value (the number this iteration's `review_issues_per_cycle`
+   entry carries). Each PR has been through code-reviewer rounds and
+   merged, or was escalated; set `status` from `tf pr view <N>` (`merged`) or
+   the report (`escalated`, `unmerged`), and relay any escalation to the human.
    Every impl-lead report ends with one release line (workflow rules,
    Handoffs, Release). If the line is missing or matches none of its forms,
    or names a version that is not `version` in `.claude-plugin/plugin.json` on
@@ -167,19 +173,22 @@ This does not change the iteration counter and does not enter the loop check.
 Evaluate termination conditions in this order (first match wins):
 
 1. **Clean**: review team filed 0 new Issues → Done (Phase 4).
-2. **Escalated or unmerged PR**: any PR of the iteration just reviewed was
-   escalated or left unmerged (Phase 2 step 7) → do not start the next
-   iteration. Relay the escalation to the human and wait for them to resolve
+2. **Escalated or unmerged PR**: any `impl_prs` entry tagged with the
+   iteration just reviewed has `status` `escalated` or `unmerged` → do not
+   start the next iteration. Relay the escalation to the human and wait for them to resolve
    it, whatever `teamflow_auto_approve` says and whether or not the next
    iteration's Issues are all-low. This comes before the auto-approval
    exceptions in rules 4 and 6. When the human has resolved it, evaluate the
    loop check again from rule 1.
 3. **No progress**: the cycle filed more new Issues than it closed → Done
-   (Phase 4). Equal counts continue. It applies to every cycle,
+   (Phase 4). Equal counts continue. Skip this rule when the iteration merged
+   no PR (no `impl_prs` entry tagged with it has `status` `merged`, as in a
+   review-only start). Otherwise it applies to every cycle,
    auto-approved or not, and is checked before the severity exception below.
    *Filed* is the number of entries in this cycle's `new_issues` (net new
-   after review-lead's dedup). *Closed* is the number of Issues that the
-   iteration's merged PRs close (`Closes #n` in the PR, as impl-lead reports
+   after review-lead's dedup). *Closed* is the number of Issues in `closes`
+   across the `impl_prs` entries tagged with the iteration whose `status` is
+   `merged` (`Closes #n` in the PR, as impl-lead reports
    them, confirmed merged with `tf pr view`). The tracking Issues (research
    and review) are in neither count. This differs from the high-severity
    escalation under Blocked / error handling, which counts high-severity
@@ -207,7 +216,11 @@ Evaluate termination conditions in this order (first match wins):
 
 Report to the human:
 - Total iterations completed
-- Total PRs opened and merged
+- Total PRs opened and merged (count `impl_prs`)
+- Every PR left escalated or unmerged in the run (`impl_prs` entries whose
+  `status` is not `merged`, each confirmed with `tf pr view <N>`, because
+  state is not updated when the human resolves one): number, iteration and
+  why. List them whatever the end reason; say none if there are none.
 - The released version, or that no release happened, and whether the human
   skipped the update. Only if a report this run named an unmerged PR (an
   "unmerged" release line, or an unmerged PR in a report body): merged
@@ -220,7 +233,10 @@ Report to the human:
   the version now on `main`: ask the human once to run `claude plugin update teamflow@teamflow --scope project`
   and restart every session. You do not run it.
 - Why the loop ended: clean, no progress (filed vs closed), severity
-  threshold, or the open-Issue floor
+  threshold, the open-Issue floor, the human stopped it (rule 6 answer, or
+  declining to resolve an escalated or unmerged PR, rule 2), or a
+  high-severity escalation (Blocked / error handling) the human did not
+  clear
 - Suggest next steps if Issues remain
 
 ---

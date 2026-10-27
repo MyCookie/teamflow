@@ -43,6 +43,10 @@ with `--agent` does not get its `skills:` preloaded.
 7. Produce a plan table: unit | issue(s) | files owned | depends on | agent type
 8. Show this plan to the human. Wait for explicit approval before
    spawning any teammates.
+   The manager may auto-approve an all-low batch under the workflow rules
+   (Handoffs, Research → Implementation, Auto-approval); that is its check,
+   not yours. Always send the plan, and never spawn before the approval
+   message arrives.
 
 ## Worktree setup (after plan is approved)
 

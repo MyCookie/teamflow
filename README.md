@@ -76,13 +76,20 @@ unset, and `teamflow-config` prints the effective values:
 
 ```json
 { "forge": "local", "remote": "origin", "base": "main", "tdd": "required",
+  "teamflow_auto_approve": "low",
   "loop": { "max_iterations": 3, "exit_severity_threshold": "medium",
             "human_checkpoint": "every_cycle", "max_open_issues_to_continue": 0 } }
 ```
 
 `tdd` is `required` or `recommended`: how strictly reviewers grade missing
-red/green evidence. `tf` and `teamflow-config` read the file from the main
-worktree, which must stay on the base branch (`tf` stops otherwise), so a
+red/green evidence. `teamflow_auto_approve` is `low` (default) or `none`:
+under `low` the manager skips the plan approval and the loop checkpoint for
+a batch of only `severity:low` Issues, does not stop the loop on the
+severity threshold for such a batch, and asks for the plugin update once at
+the end instead of before review; the workflow skill defines the
+conditions. `none` turns it off. This flow has not been run live.
+
+`tf` and `teamflow-config` read the file from the main worktree, which must stay on the base branch (`tf` stops otherwise), so a
 PR under review can't change the rules its own review runs under. Work on
 other branches in separate worktrees.
 
@@ -171,7 +178,9 @@ once, in [`skills/workflow/SKILL.md`](skills/workflow/SKILL.md), Handoffs,
   update command it gives you, then fully restart every teamflow session.
   Agents do not run the update: it changes your install outside the
   repository. The manager waits for you to confirm, or to skip, before the
-  review phase.
+  review phase, except for an auto-approved all-low iteration
+  (`teamflow_auto_approve`, see Settings): there it asks once, at the end of
+  the run, so review runs on the older install.
 - **Not tested.** The update command's behaviour (it refreshes the
   marketplace and installs the new copy when the version changed) is taken
   from the Claude Code docs, not run here. Whether `/reload-plugins`

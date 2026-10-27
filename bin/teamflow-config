@@ -29,6 +29,7 @@ DEFAULTS = {
     "remote": "origin",
     "base": "main",
     "tdd": "required",
+    "teamflow_auto_approve": "low",
     "loop": {
         "max_iterations": 3,
         "exit_severity_threshold": "medium",
@@ -40,8 +41,9 @@ DEFAULTS = {
 ALLOWED = {
     "forge": {"local", "github"},
     "tdd": {"required", "recommended"},
+    "teamflow_auto_approve": {"low", "none"},
     "loop.exit_severity_threshold": {"high", "medium", "low", "none"},
-    "loop.human_checkpoint": {"every_cycle", "first_loop_only", "never"},
+    "loop.human_checkpoint": {"every_cycle"},
 }
 
 

@@ -68,6 +68,12 @@ Assess the user's goal against the routing table in the workflow rules:
 - A PR to review and merge that the implementation team did not open
   (a human's or an external contributor's) → Merge review, outside the loop
 
+When the human decides an existing Issue (for example a `needs-discussion`
+finding), record it: run `tf issue comment <n> --body-file - <<'EOF'` with the
+decision, then `tf issue edit <n>` so the labels match it, per the workflow
+rules (Issues). Do this before routing the Issue on, because auto-approval
+and the loop check read the labels.
+
 Write the decision and goal to .manager-state.json before proceeding.
 
 ---

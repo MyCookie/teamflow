@@ -248,6 +248,14 @@ inside single quotes an ordinary apostrophe ends the string and does the
 same; inside `<<'EOF'` nothing is expanded. Keep titles to one line in
 single quotes, with no quotes or backticks. No scratch file is needed.
 
+Relabel with `tf issue edit <n> [--add-label <l> ...] [--remove-label <l> ...]`.
+When a human decides an Issue (for example a `needs-discussion` finding),
+the agent that records the decision runs `tf issue comment` with the
+decision, then `tf issue edit` so the labels match it: remove
+`needs-discussion` once it is resolved, and leave exactly one `severity:`
+label. A label change records a decision and never stands in for one: no
+agent changes `severity:` or `needs-discussion` on its own judgment.
+
 **Research Issues are typed briefs**, so implementation and review can
 check each claim:
 - **Objective**: one outcome.

@@ -7,6 +7,7 @@
     tf issue list [--label L ...]                # open Issues carrying any label
     tf issue view N
     tf issue comment N (--body B | --body-file F)
+    tf issue edit N [--add-label L ...] [--remove-label L ...]   # at least one flag
     tf issue close N
     tf pr create --title T (--body B | --body-file F) [--base B]
     tf pr list
@@ -224,6 +225,12 @@ class Local:
         self._save(r)
         print(f"#{n}: commented")
 
+    def issue_edit(self, n, add, remove):
+        r = self._load(n, "issue")
+        r["labels"] = [l for l in r["labels"] if l not in remove] + [l for l in dict.fromkeys(add) if l not in r["labels"]]
+        self._save(r)
+        print(f"#{n}: labels: {', '.join(r['labels']) or '-'}")
+
     def issue_close(self, n):
         r = self._load(n, "issue")
         r["state"] = "closed"
@@ -435,6 +442,10 @@ class GitHub:
 
     def issue_comment(self, n, body):
         print(self.gh("issue", "comment", str(n), "--body", body))
+
+    def issue_edit(self, n, add, remove):
+        print(self.gh("issue", "edit", str(n), *[a for l in add for a in ("--add-label", l)],
+                      *[a for l in remove for a in ("--remove-label", l)]))
 
     def issue_close(self, n):
         print(self.gh("issue", "close", str(n)))
@@ -712,6 +723,15 @@ def body(a):
     return sys.stdin.read() if a.body_file == "-" else read_file(a.body_file)
 
 
+def edit_labels(a):
+    if not (a.add_label or a.remove_label):
+        raise SetupError("issue edit needs --add-label or --remove-label")
+    both = set(a.add_label) & set(a.remove_label)
+    if both:
+        raise SetupError(f"label on both --add-label and --remove-label: {', '.join(sorted(both))}")
+    return a.add_label, a.remove_label
+
+
 def forge():
     cfg = config()
     return GitHub(cfg) if cfg["forge"] == "github" else Local(cfg)
@@ -736,6 +756,10 @@ def main():
     c = issue.add_parser("comment")
     c.add_argument("n", type=int)
     body_args(c)
+    c = issue.add_parser("edit")
+    c.add_argument("n", type=int)
+    c.add_argument("--add-label", action="append", default=[])
+    c.add_argument("--remove-label", action="append", default=[])
     issue.add_parser("close").add_argument("n", type=int)
 
     pr = sub.add_parser("pr").add_subparsers(dest="verb", required=True)
@@ -767,6 +791,7 @@ def main():
              "list": lambda: f.issue_list(a.label),
              "view": lambda: f.issue_view(a.n),
              "comment": lambda: f.issue_comment(a.n, body(a)),
+             "edit": lambda: f.issue_edit(a.n, *edit_labels(a)),
              "close": lambda: f.issue_close(a.n)}[a.verb]()
         else:
             {"create": lambda: f.pr_create(a.title, body(a), a.base or f.cfg["base"]),

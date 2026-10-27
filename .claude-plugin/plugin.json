@@ -1,6 +1,6 @@
 {
   "name": "teamflow",
-  "version": "0.12.1",
+  "version": "0.13.0",
   "description": "A research, implementation and review agent pipeline with a manager-governed loop and an independent per-PR reviewer that is the only actor allowed to merge",
   "author": {
     "name": "Ashish Kansara"

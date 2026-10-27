@@ -79,6 +79,35 @@ class LocalFlow(unittest.TestCase):
         self.assertNotIn("#2", self.ok("issue", "list"))
         self.refused("pr", "view", "1")  # an Issue is not a PR
 
+    def test_issue_edit_labels(self):
+        self.ok("issue", "create", "--title", "Bug", "--body-file", str(self.body),
+                "--label", "needs-discussion", "--label", "severity:medium")
+        # the 2026-10-27 case: swap labels in one call
+        self.ok("issue", "edit", "1", "--remove-label", "needs-discussion", "--remove-label", "severity:medium",
+                "--add-label", "severity:low")
+        self.assertIn("labels: severity:low\n", self.ok("issue", "view", "1"))
+        self.assertIn("labels: severity:low, a", self.ok("issue", "edit", "1", "--add-label", "a",
+                                                          "--add-label", "severity:low"))  # no duplicate, order kept
+        self.assertIn("labels: severity:low", self.ok("issue", "edit", "1", "--remove-label", "a", "--remove-label", "nope"))
+        self.assertIn("labels: -", self.ok("issue", "edit", "1", "--remove-label", "severity:low"))
+        self.ok("issue", "close", "1")
+        self.ok("issue", "edit", "1", "--add-label", "late")  # closed Issues can be relabelled, not reopened
+        view = self.ok("issue", "view", "1")
+        self.assertIn("state: closed", view)
+        self.assertIn("labels: late\n", view)
+
+    def test_issue_edit_refusals(self):
+        self.ok("issue", "create", "--title", "Bug", "--body-file", str(self.body), "--label", "x")
+        self.refused("issue", "edit", "1", code=2)  # no flags
+        self.refused("issue", "edit", "1", "--add-label", "y", "--remove-label", "y", code=2)
+        self.assertIn("labels: x\n", self.ok("issue", "view", "1"))  # nothing changed
+        self.refused("issue", "edit", "99", "--add-label", "x")  # missing
+        git("worktree", "add", "-q", "-b", "feat/1-v2", str(self.impl), cwd=self.main)
+        (self.impl / "app.txt").write_text("v2\n")
+        git("commit", "-qam", "feat: v2", cwd=self.impl)
+        self.assertIn("#2", self.ok("pr", "create", "--title", "feat: v2", "--body-file", str(self.body), cwd=self.impl))
+        self.refused("issue", "edit", "2", "--add-label", "x")  # a PR is not an Issue
+
     def test_body_from_stdin_is_stored_verbatim(self):
         # a quoted heredoc on stdin: the shell expands nothing, apostrophes included
         body = "It doesn't `rm -rf /`, and $HOME stays literal: it's text.\n"
@@ -415,6 +444,18 @@ class GitHubFlow(unittest.TestCase):
             self.assertIn(text, view)
         self.assertIn("#1", self.ok("issue", "list", "--label", "area:docs", "--label", "type:bug"))
         self.assertEqual(self.ok("issue", "list", "--label", "area:docs"), "")
+
+    def test_issue_edit_labels(self):
+        self.ok("issue", "create", "--title", "Bug", "--body", "It breaks.",
+                "--label", "needs-discussion", "--label", "severity:medium")
+        self.ok("issue", "edit", "1", "--remove-label", "needs-discussion", "--remove-label", "severity:medium",
+                "--add-label", "severity:low")
+        self.assertIn("labels: severity:low\n", self.ok("issue", "view", "1"))
+        self.assertIn("#1", self.ok("issue", "list", "--label", "severity:low"))
+        self.assertEqual(self.ok("issue", "list", "--label", "needs-discussion"), "")
+        self.code(2, "issue", "edit", "1")  # no flags
+        self.code(2, "issue", "edit", "1", "--add-label", "y", "--remove-label", "y")
+        self.assertIn("labels: severity:low\n", self.ok("issue", "view", "1"))  # nothing changed
 
     def test_pr_view_shows_the_merge_state(self):
         self.open_pr()

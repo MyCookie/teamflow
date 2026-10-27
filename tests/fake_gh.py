@@ -94,6 +94,12 @@ def main():
         elif verb == "comment":
             state["issues"][rest[0]]["comments"].append({"createdAt": "2026-01-01T00:00:00Z", "body": opt(rest, "--body")})
             save(state)
+        elif verb == "edit":
+            i = state["issues"][rest[0]]
+            drop = opt(rest, "--remove-label", many=True)
+            i["labels"] = [l for l in i["labels"] if l not in drop] + \
+                [l for l in opt(rest, "--add-label", many=True) if l not in i["labels"]]
+            save(state)
         elif verb == "close":
             state["issues"][rest[0]]["state"] = "CLOSED"
             save(state)

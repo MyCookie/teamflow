@@ -59,7 +59,8 @@ author's say-so.**
       owned files, and always sends it. The manager does not take
       impl-lead's word for the classification: it reads every planned
       Issue's labels (`tf issue list`, or `tf issue view <n>`) and checks the
-      owned files against the list above. If it confirms all-low, it tells
+      owned files against the list above and the plan for a specialist or
+      fallback agent. If it confirms all-low, it tells
       the human the plan was auto-approved and why, and sends "Plan
       approved. Begin spawning." without waiting. If a check fails, or an
       Issue cannot be read, the plan waits for the human as under `none`.

@@ -48,8 +48,8 @@ You do not spawn teammates. You do not modify source files.
    Each `iterations` entry is `{"iteration": <n>, "auto_approved": <bool>}`;
    an auto-approved iteration with a version in its release line also has
    `"deferred_release": "<version>"` (Phase 2 step 7, Phase 4).
-   If `release` exists with `confirmed: false` and its iteration was not
-   auto-approved, you were restarted mid-release: resume the wait and ask the
+   If `release` exists with `confirmed: false` (only a non-auto-approved
+   iteration sets it), you were restarted mid-release: resume the wait and ask the
    human to confirm or skip before Phase 3. A deferred release is not a wait:
    do not stop for it, ask for it at Phase 4.
 3. Confirm which sessions are running (`ListAgents`). Tell the human
@@ -95,7 +95,7 @@ Write the decision and goal to .manager-state.json before proceeding.
    rules, Handoffs, Research → Implementation, Auto-approval): run
    `tf issue list` (or `tf issue view <n>` per Issue), read the labels of
    every Issue in the plan, and check each unit's owned files in the plan
-   table. If all-low is confirmed, relay the plan to the human as a notice
+   table and that the plan flags no specialist agent or fallback. If all-low is confirmed, relay the plan to the human as a notice
    that it was auto-approved and why, record the iteration with
    `auto_approved: true`, and go to step 5 without waiting. If a check fails
    or an Issue cannot be read, or the setting is `none`, record
@@ -197,8 +197,9 @@ Report to the human:
   release (workflow rules, Handoffs, Release). Otherwise say nothing of it.
 - Remaining open Issues (count + links)
 - The iterations that ran without approval (`auto_approved: true`) and, if
-  any iteration has a `deferred_release`, the version now on `main`: ask the
-  human once to run `claude plugin update teamflow@teamflow --scope project`
+  any iteration has a `deferred_release` and the human has not already
+  confirmed or skipped an update for that version (`release.confirmed`),
+  the version now on `main`: ask the human once to run `claude plugin update teamflow@teamflow --scope project`
   and restart every session. You do not run it.
 - Whether the loop ended clean or hit a bound
 - Suggest next steps if Issues remain

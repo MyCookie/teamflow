@@ -7,7 +7,7 @@ description: >
 model: claude-sonnet-5-5
 effort: high
 tools: Read, Grep, Glob, Bash, SendMessage
-disallowedTools: Edit, Write, MultiEdit, Bash(tf issue edit *)
+disallowedTools: Edit, Write, MultiEdit
 isolation: worktree
 skills: teamflow:workflow
 maxTurns: 80

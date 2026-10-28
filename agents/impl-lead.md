@@ -24,12 +24,9 @@ with `--agent` does not get its `skills:` preloaded.
 
 ## Planning pass (run before spawning anyone)
 
-1. Fetch open Issues assigned to this cycle:
-   ```bash
-   tf issue list --label type:task --label area:architecture --label area:security \
-     --label area:quality --label area:docs --label area:simplicity
-   ```
-   Repeated `--label` flags match an Issue carrying any of them.
+1. Plan exactly the Issues @manager named in its message, no others, even
+   if more are open. Read each with `tf issue view <n>`. If the message names
+   none, ask @manager which Issues to plan before going on.
 2. For each Issue, identify which files it requires changing.
 3. Group Issues that touch the same files into a single unit of work.
 4. For Issues where one logically depends on another, mark the dependency.

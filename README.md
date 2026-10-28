@@ -79,14 +79,11 @@ unset, and `teamflow-config` prints the effective values:
 
 `tdd` is `required` or `recommended`: how strictly reviewers grade missing
 red/green evidence. `teamflow_auto_approve` is `low` (default) or `none`:
-under `low` the manager skips the plan approval and the per-cycle question for
-a batch of only `severity:low` Issues, does not stop the loop on the
-severity threshold for such a batch, and asks for the plugin update once at
-the end instead of before review. The plan still waits for you if a unit
-owns files under `agents/`, `skills/` or `.github/`, or a rule file
-(`.claude/teamflow.json`, `scripts/gate.sh`, the CI or ruleset template), or
-an Issue is labelled `needs-discussion`; the workflow skill defines the
-conditions. `none` turns it off. This flow has not been run live.
+under `low` the manager can skip some human gates for a batch of only
+`severity:low` Issues; `none` turns that off. The conditions, what is
+skipped and what still waits for you are defined in the workflow skill
+(`skills/workflow/SKILL.md`, Handoffs, Auto-approval). This flow has not been
+run live.
 
 **Migrating:** `loop.max_iterations` and `loop.human_checkpoint` are removed.
 A `.claude/teamflow.json` that still sets either makes `teamflow-config`, and
@@ -94,10 +91,9 @@ so every `tf` command that reads the config, exit 2 with `unknown key '...'`
 (the test covers `teamflow-config` directly); delete the key. `tf setup` is the
 exception: it does not call `teamflow-config`, reading only `forge` from the
 file, so it does not exit 2 on a removed key (it does exit 2 on invalid JSON).
-No iteration cap remains, by a human decision: an auto-approved run whose
-cycles keep filing exactly as many all-low Issues as they close continues
-without asking the human. The manager's loop check in `agents/manager.md`
-lists when a loop still ends or pauses. These loop rules have not been run live.
+No iteration cap remains, by a human decision. When a loop ends or pauses is
+in the manager's loop check (`agents/manager.md`); these loop rules have not
+been run live.
 
 `tf` and `teamflow-config` read the file from the main worktree, which must
 stay on the base branch (`tf` stops otherwise), so a PR under review can't

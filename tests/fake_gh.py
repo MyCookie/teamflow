@@ -19,6 +19,8 @@ a reviewer rejecting it meanwhile would. "change_on_pending" does the same with 
 answer that holds a pending check exits 8, which `gh pr checks --help` documents as
 "8: Checks pending". The help does not say what `--json` prints or exits with, so that
 the JSON is still printed alongside exit 8 is unverified; it is what this fake does.
+A PR's "auto_merge" key (set by `pr merge --auto`) makes `autoMergeRequest` an object, else null;
+that real gh prints null for an unarmed PR was not checked, and tf treats null and a missing key alike.
 """
 
 import json
@@ -60,7 +62,8 @@ def pr_json(state, n):
     files = git("diff", "--name-only", f"{p['base']}...{head}").split()
     return {"title": p["title"], "body": p["body"], "state": p["state"], "headRefName": p["head"],
             "baseRefName": p["base"], "headRefOid": head, "files": [{"path": f} for f in files],
-            "mergeStateStatus": p.get("merge_state", "CLEAN")}
+            "mergeStateStatus": p.get("merge_state", "CLEAN"),
+            "autoMergeRequest": {"enabledBy": {"login": "fake"}, "mergeMethod": "SQUASH"} if p.get("auto_merge") else None}
 
 
 def main():
@@ -176,7 +179,9 @@ def main():
                 print("head branch was modified", file=sys.stderr)
                 sys.exit(1)
             state["merges"].append({"pr": rest[0], "auto": "--auto" in rest, "subject": opt(rest, "--subject")})
-            if "--auto" not in rest:
+            if "--auto" in rest:
+                state["prs"][rest[0]]["auto_merge"] = True
+            else:
                 state["prs"][rest[0]]["state"] = "MERGED"
             save(state)
         return

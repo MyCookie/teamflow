@@ -758,6 +758,15 @@ class GitHubFlow(unittest.TestCase):
         self.assertTrue(self.gh_state()["merges"][-1]["auto"])
         self.assertEqual(self.gh_state()["prs"]["2"]["state"], "OPEN")  # GitHub merges it later
 
+    def test_pr_view_shows_the_auto_merge_state(self):
+        head = self.open_pr()
+        self.set_checks(head, "pass", required=True)
+        self.assertIn("merge state: clean\nauto-merge: off\n", self.ok("pr", "view", "2"))
+        self.ok("pr", "gate", "2", cwd=self.rev)
+        self.ok("pr", "review", "2", "--verdict", "APPROVE", "--sha", head, "--body", "ok", cwd=self.rev)
+        self.ok("pr", "merge", "2", cwd=self.rev)  # ruleset: arms auto-merge
+        self.assertIn("merge state: clean\nauto-merge: on\n", self.ok("pr", "view", "2"))
+
     def test_ruleset_merge_does_not_wait_for_unfinished_or_red_required_checks(self):
         """With a ruleset GitHub enforces the required checks: tf enables auto-merge at once, whatever their bucket."""
         head = self.open_pr()

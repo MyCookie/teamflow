@@ -92,7 +92,7 @@ class QuotingCheck(unittest.TestCase):
 
     def test_prose_that_is_not_a_command_line_passes(self):
         for line in ["Pass the text with the --body flag, not a file.", "std::cout << x;",
-                     "`tf issue create` takes --body-file; the --body flag is not used.",
+                     "Use the `--body` flag only for one-liners.",
                      "tf pr create --title 'x' --body-file - <<'EOF'"]:
             with self.subTest(line=line):
                 self.assertFalse(self.flagged(line))
@@ -100,8 +100,13 @@ class QuotingCheck(unittest.TestCase):
     def test_unsafe_tf_command_lines_still_fail(self):
         for line in ['tf issue comment 3 --body "text `x`"', "tf issue comment 3 --body='it's'",
                      "tf issue comment 3 --body $TEXT", "tf issue comment 3 --body",
+                     "tf issue comment 3 --body `date`", "tf issue comment 3 --body hello",
+                     "tf issue comment 3 --body <(echo hi)", "tf  issue comment 3 --body hello",
+                     '"$TF" issue comment 3 --body "x"',
+                     "cat <<EOF | tf issue create --title 't' --body-file -",
                      'tf issue create --title "a `b`" --body-file -', "tf pr create --title 'x' --body-file - <<EOF",
-                     "tf pr review 4 --verdict APPROVE --sha s --body-file - << EOF"]:
+                     "tf pr review 4 --verdict APPROVE --sha s --body-file - << EOF",
+                     '  --body "wrapped"', "  --body-file - <<EOF"]:
             with self.subTest(line=line):
                 self.assertTrue(self.flagged(line))
 

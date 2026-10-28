@@ -70,15 +70,18 @@ step "unit tests" python3 -m unittest discover -s tests
 # Agents copy these command shapes, so bodies must reach tf as a quoted
 # heredoc on stdin (#9): double quotes run backtick spans as commands, and in
 # single quotes an apostrophe in prose ends the string and does the same.
-# Flags, on a line with a tf issue or pr command, an inline --body (an
-# argument that is quoted, a variable, or after =, or nothing), a
-# double-quoted --title, and a heredoc whose delimiter is not quoted. Prose
-# such as "the --body flag" or "std::cout << x" passes (#14).
-# shortcut: a command wrapped over several lines is only seen on the line that
-# holds "tf issue|pr"; upgrade if the docs start wrapping commands.
+# The old pattern, kept whole (an inline --body in any form, a double-quoted
+# --title, a heredoc whose delimiter is not quoted), applied only to command
+# lines: a line naming a subcommand that takes a body (issue create|comment,
+# pr create|review, however tf is spelled) or starting with a flag (a wrapped
+# command). Prose such as "the --body flag" or "std::cout << x" has neither,
+# so it passes (#14).
+# shortcut: a heredoc or flag on a wrapped line that neither names a
+# subcommand nor starts with a flag is missed; upgrade if the docs wrap so.
 quoting_is_safe() {
-    local re="(^|[^[:alnum:]_-])tf (issue|pr) .*(--body(=|[[:space:]]+[\"'\$]|\$)|--title(=|[[:space:]]+)\"|<<-?[[:space:]]*[A-Za-z_])"
-    ! grep -rnE -- "$re" "$@"
+    local command='(issue|pr)[[:space:]]+(create|comment|review)|^[[:space:]]*--'
+    local unsafe='--body([[:space:]=]|$)|--title(=|[[:space:]]+)"|<<-?[[:space:]]*[A-Za-z_]'
+    ! { grep -rnE -- "$command" "$@" | grep -E -- "$unsafe"; }
 }
 step "agent docs pass bodies safely" quoting_is_safe agents skills README.md
 

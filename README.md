@@ -126,9 +126,9 @@ merges, run `tf setup --forge github --apply` once more from the main
 worktree. Rulesets need a public repository or a paid plan; without them
 `tf setup` says so and GitHub mode runs unenforced.
 
-On GitHub, `tf pr gate` and `tf pr merge` can wait for CI for up to
-`TF_GATE_WAIT` seconds, polling every `TF_GATE_POLL`; if your CI takes
-longer, see `tf --help` for both settings.
+On GitHub, `tf pr gate` and `tf pr merge` can wait for CI, bounded by
+`TF_GATE_WAIT` and polled every `TF_GATE_POLL`; if your CI takes long, see
+`tf --help` for both settings and how long the wait can run.
 
 `tf mode` then prints `github`. If `gh` is missing, logged out, or the
 remote isn't GitHub, every `tf` command stops with exit 2 rather than

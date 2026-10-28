@@ -8,6 +8,7 @@
     tf issue view N
     tf issue comment N (--body B | --body-file F)
     tf issue edit N [--add-label L ...] [--remove-label L ...]   # at least one flag
+    # a label is non-empty, printable, with no comma, on create and edit (else exit 2)
     tf issue close N
     tf pr create --title T (--body B | --body-file F) [--base B]
     tf pr list
@@ -723,9 +724,19 @@ def body(a):
     return sys.stdin.read() if a.body_file == "-" else read_file(a.body_file)
 
 
+def check_labels(labels):
+    # A comma may split in gh (from gh's help text; unverified, #171) and fakes a second label in `issue list`; a control character (C0, DEL, C1
+    # such as U+0085) fakes a line. isprintable also refuses other non-ASCII spaces and unassigned characters.
+    for l in labels:
+        if not l or "," in l or not l.isprintable():
+            raise SetupError(f"invalid label {l!r}: it must be non-empty, with no comma or control character")
+    return labels
+
+
 def edit_labels(a):
     if not (a.add_label or a.remove_label):
         raise SetupError("issue edit needs --add-label or --remove-label")
+    check_labels(a.add_label + a.remove_label)
     both = set(a.add_label) & set(a.remove_label)
     if both:
         raise SetupError(f"label on both --add-label and --remove-label: {', '.join(sorted(both))}")
@@ -787,7 +798,7 @@ def main():
         if a.noun == "mode":
             print("github" if isinstance(f, GitHub) else "local")
         elif a.noun == "issue":
-            {"create": lambda: f.issue_create(a.title, body(a), a.label),
+            {"create": lambda: f.issue_create(a.title, body(a), check_labels(a.label)),
              "list": lambda: f.issue_list(a.label),
              "view": lambda: f.issue_view(a.n),
              "comment": lambda: f.issue_comment(a.n, body(a)),

@@ -48,28 +48,30 @@ and merge the branch the way you merge today. teamflow's own review flow
 starts once this is on the base branch. The `teamflow:setup` skill walks
 through it and lists the checks that the team works.
 
-**Auto mode.** In one GitHub-mode session in auto mode, the classifier
-refused `tf issue close 114` as an external system write ("[External System
-Writes]"); read-only `tf issue view` and the `tf setup` dry run were not
-refused. After `"Bash(tf *)"` was added to `permissions.allow` in
-`.claude/settings.local.json`, the same command exited 0. If auto mode stops
-your sessions the same way, add the rule once:
+**Auto mode.** A manager session reported on 2026-10-27 (Claude Code
+version not recorded; not re-run here) that, in GitHub mode under auto mode,
+the classifier refused `tf issue close` as an external system write
+("[External System Writes]") and that the same command exited 0 once
+`"Bash(tf *)"` was in `permissions.allow`. Reviewer `tf pr merge` runs were
+also reported refused ("[Merge Without Review]"), including with the rule in
+the shared file; the cause is unverified, so the rule may not cover merges.
+The quoted reason and the rule syntax were not checked against Claude
+Code's permission documentation. If auto mode stops your sessions, add
+`"Bash(tf *)"` to `permissions.allow` in a settings file of the repository
+root where the leads start:
 
-```json
-{ "permissions": { "allow": ["Bash(tf *)"] } }
-```
+- `.claude/settings.json` is committed, so every worktree and collaborator
+  gets it. teamflow's own repository carries the rule there (read, not
+  tested). This grants every collaborator's sessions every `tf` subcommand,
+  including `tf pr merge` and `tf setup --apply`.
+- `.claude/settings.local.json` is per user and uncommitted. A worktree
+  created later has no copy (checked in a scratch repository), and `tf setup`
+  does not add it to `.gitignore`.
 
-`.claude/settings.local.json` is per user and uncommitted, and is the file
-that was tested. The shared `.claude/settings.json` is committed and applies
-to everyone who clones; the rule there is untested, and which file to use is
-your decision. The rule allows every `tf` subcommand, including `tf pr merge`
-and `tf setup --apply`, and in the shared file it grants that to every
-collaborator's sessions. `tf setup` does not add `settings.local.json` to
-`.gitignore` (it adds only `.manager-state.json`, `.claude/worktrees/` and
-`.env`), so ignore it yourself. Not verified: whether a session already
-running picks the rule up without a restart, whether subagents in other
-worktrees inherit it, whether other `tf` writes or local mode are ever
-refused (only `tf issue close` in GitHub mode was observed).
+Add the rule to an existing `permissions.allow`; do not replace the file.
+Which file to use is your decision. Untested: whether a running session
+picks the rule up without a restart, whether subagents inherit it, and any
+other `tf` write or local mode.
 
 **Settings** live in `.claude/teamflow.json`; defaults apply for anything
 unset, and `teamflow-config` prints the effective values:
@@ -85,7 +87,10 @@ red/green evidence. `teamflow_auto_approve` is `low` (default) or `none`:
 under `low` the manager skips the plan approval and the per-cycle question for
 a batch of only `severity:low` Issues, does not stop the loop on the
 severity threshold for such a batch, and asks for the plugin update once at
-the end instead of before review; the workflow skill defines the
+the end instead of before review. A unit that owns files under `agents/`,
+`skills/` or `.github/`, or a rule file (`.claude/teamflow.json`,
+`scripts/gate.sh`, the CI or ruleset template), or an Issue labelled
+`needs-discussion`, still waits for you; the workflow skill defines the
 conditions. `none` turns it off. This flow has not been run live.
 
 **Migrating:** `loop.max_iterations` and `loop.human_checkpoint` are removed.
@@ -94,14 +99,15 @@ so every `tf` command that reads the config, exit 2 with `unknown key '...'`
 (the test covers `teamflow-config` directly); delete the key. `tf setup` is the
 exception: it does not call `teamflow-config`, reading only `forge` from the
 file, so it does not exit 2 on a removed key (it does exit 2 on invalid JSON).
-No iteration cap remains (Issue #187): an auto-approved run whose cycles keep
-filing exactly as many all-low Issues as they close continues without asking
-the human. The manager's loop check in `agents/manager.md` lists when a loop
-still ends or pauses. These loop rules have not been run live.
+No iteration cap remains, by a human decision: an auto-approved run whose
+cycles keep filing exactly as many all-low Issues as they close continues
+without asking the human. The manager's loop check in `agents/manager.md`
+lists when a loop still ends or pauses. These loop rules have not been run live.
 
-`tf` and `teamflow-config` read the file from the main worktree, which must stay on the base branch (`tf` stops otherwise), so a
-PR under review can't change the rules its own review runs under. Work on
-other branches in separate worktrees.
+`tf` and `teamflow-config` read the file from the main worktree, which must
+stay on the base branch (`tf` stops otherwise), so a PR under review can't
+change the rules its own review runs under. Work on other branches in
+separate worktrees.
 
 ## Local or GitHub
 
@@ -152,7 +158,7 @@ it; leads load it as their first step.
 |---|---|
 | `agents/` | The manager, three leads, and eight workers, named `teamflow:<agent>` |
 | `skills/workflow/` | The pipeline rules every agent follows |
-| `bin/tf` | Issues and PRs in either mode: create, list, claim, gate, diff, review, merge |
+| `bin/tf` | Issues and PRs in either mode; `tf -h` lists every command |
 | `bin/teamflow-config` | Print the repository's effective configuration |
 | `templates/` | `gate.sh` and the PR template for every repository; `ci.yml` and `branch-ruleset.json` for GitHub mode |
 | `tests/` | `python3 -m unittest discover -s tests` |
@@ -163,47 +169,36 @@ subagents alike.
 ## Release
 
 A merged change reaches the agents only after a release. Sessions run the
-installed copy under `~/.claude/plugins/cache/`, not the repository. With
-marketplace auto-update off, as on the maintainer's install (their answer to
-#33, Q4), nothing moves that copy forward on its own; whether it is on by
-default for a marketplace is not verified here, and with it on, a version
-bump would arrive without `claude plugin update`.
-
-The release rule itself (when a release is needed, the bump, the branch,
-the sequencing, the release line and what the manager asks of you) is stated
-once, in [`skills/workflow/SKILL.md`](skills/workflow/SKILL.md), Handoffs,
-"Release". What follows is only what a human needs.
+installed copy under `~/.claude/plugins/cache/`, not the repository, and with
+marketplace auto-update off, as on the maintainer's install, nothing moves
+that copy forward on its own. The release rule itself (when a release is
+needed, the bump, the sequencing, the release line) is stated once, in
+[`skills/workflow/SKILL.md`](skills/workflow/SKILL.md), Handoffs, "Release".
+What follows is what a human does.
 
 - **Where the version lives.** `version` in `.claude-plugin/plugin.json`,
-  and nowhere else. The marketplace entry carries none; the manifest's
-  version overrides the entry's (Claude Code docs, plugins-reference.md,
-  "Metadata precedence", as quoted in #33; not re-checked here).
-- **Why it stays.** With a `version` in the manifest, Claude Code keeps every
-  user on the cached copy until the string changes (docs, plugins/loading.md,
-  "Versions and updates", as quoted in #33). Leaving it out would use the
-  commit SHA instead, but on a scratch copy without it, `claude plugin
-  validate --strict` (part of `./scripts/gate.sh`) failed with "version: No
-  version specified" (research-lead's run for #33; not re-run here).
-- **Reaching the agents.** When the manager reports a release, run the
-  update command it gives you, then fully restart every teamflow session.
-  Agents do not run the update: it changes your install outside the
-  repository. The manager waits for you to confirm, or to skip, before the
-  review phase, except for an auto-approved all-low iteration
-  (`teamflow_auto_approve`, see Settings): there it asks once, at the end of
-  the run, so review runs on the older install.
-- **Not tested.** The update command's behaviour (it refreshes the
-  marketplace and installs the new copy when the version changed) is taken
-  from the Claude Code docs, not run here. Whether `/reload-plugins`
-  refreshes subagent definitions is untested, so a full restart is required.
-  The release sequencing, the four release-line forms, the manager's check of
-  the line and the main-worktree update step have not been run by a live
-  impl-lead and manager. Also not run: `tf pr gate` on a PR whose
-  auto-merge is already queued, and the `merge state:` value `behind`
-  from `tf pr view` (only `blocked` on an open PR and `unknown` on a merged
-  PR were observed; `behind` is expected, not observed). The
-  Queued merge procedure as a whole, and whether the one re-read of
-  `tf pr view` is enough given the unmeasured merge delay, have not been
-  run by a live impl-lead.
+  and nowhere else. It must stay: without it `claude plugin validate
+  --strict` failed on a scratch copy.
+- **Reaching the agents.** When the manager reports a release, run
+  `claude plugin update teamflow@teamflow --scope project`, then fully
+  restart every teamflow session. Agents never run the update, since it
+  changes your install. The manager asks you to confirm or skip it before
+  review, or once at the end of an auto-approved all-low run.
+- **Not tested.** Not verified here: these points come from the Claude Code
+  docs, which the maintainer's research read and this README did not re-check
+  (the manifest's `version` overriding the marketplace entry's, the cached
+  copy staying until the string changes, whether auto-update is on by default
+  for a marketplace, and the update command's behaviour), and from one
+  scratch-copy run of `claude plugin validate --strict` without `version`.
+  Whether `/reload-plugins` refreshes subagent definitions is untested, so a
+  full restart is required. No live impl-lead or manager has run the release
+  sequencing, the four release-line forms (a version line can also accompany
+  a named unmerged PR), the manager's check of the line, or the main-worktree
+  update. The Queued merge procedure (`tf pr gate`, then `tf pr view`,
+  with one re-read) has not been run live either, nor
+  `tf pr gate` on an already-queued auto-merge, nor the `merge state:` value
+  `behind` (only `blocked` on an open PR and `unknown` on a merged PR were
+  observed).
 
 No tag, changelog or extra gate step is needed; `git log` is the record.
 

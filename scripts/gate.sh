@@ -70,13 +70,17 @@ step "unit tests" python3 -m unittest discover -s tests
 # Agents copy these command shapes, so bodies must reach tf as a quoted
 # heredoc on stdin (#9): double quotes run backtick spans as commands, and in
 # single quotes an apostrophe in prose ends the string and does the same.
-# Flags an inline --body in any form, a double-quoted --title, and a heredoc
-# whose delimiter is not quoted.
+# Flags, on a line with a tf issue or pr command, an inline --body (an
+# argument that is quoted, a variable, or after =, or nothing), a
+# double-quoted --title, and a heredoc whose delimiter is not quoted. Prose
+# such as "the --body flag" or "std::cout << x" passes (#14).
+# shortcut: a command wrapped over several lines is only seen on the line that
+# holds "tf issue|pr"; upgrade if the docs start wrapping commands.
 quoting_is_safe() {
-    ! grep -rnE -- '--body([[:space:]=]|$)|--title(=|[[:space:]]+)"|<<-?[[:space:]]*[A-Za-z_]' \
-        agents skills README.md
+    local re="(^|[^[:alnum:]_-])tf (issue|pr) .*(--body(=|[[:space:]]+[\"'\$]|\$)|--title(=|[[:space:]]+)\"|<<-?[[:space:]]*[A-Za-z_])"
+    ! grep -rnE -- "$re" "$@"
 }
-step "agent docs pass bodies safely" quoting_is_safe
+step "agent docs pass bodies safely" quoting_is_safe agents skills README.md
 
 # Plugin validation needs the claude CLI (no login). CI installs it, so in CI
 # a missing claude fails the gate rather than skipping a required check.

@@ -7,10 +7,13 @@ pattern removed the whole Bash tool from eight agents (#165, #188).
 """
 
 import re
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
-AGENTS = Path(__file__).resolve().parents[1] / "agents"
+ROOT = Path(__file__).resolve().parents[1]
+AGENTS = ROOT / "agents"
 
 
 def field(text, key):
@@ -74,6 +77,33 @@ class AgentDisallowedTools(unittest.TestCase):
         for f in sorted(AGENTS.glob("*.md")):
             with self.subTest(agent=f.name):
                 self.assertTrue(has_bash(f.read_text()))
+
+
+class QuotingCheck(unittest.TestCase):
+    """scripts/gate.sh quoting_is_safe: flags unsafe tf command lines, not prose (#14)."""
+
+    def flagged(self, line):
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "doc.md").write_text(line + "\n")
+            script = 'source <(sed -n "/^quoting_is_safe() {/,/^}/p" scripts/gate.sh); quoting_is_safe "$1"'
+            r = subprocess.run(["bash", "-c", script, "bash", d], cwd=ROOT, capture_output=True, text=True)
+        self.assertIn(r.returncode, (0, 1), r.stderr)
+        return r.returncode == 1
+
+    def test_prose_that_is_not_a_command_line_passes(self):
+        for line in ["Pass the text with the --body flag, not a file.", "std::cout << x;",
+                     "`tf issue create` takes --body-file; the --body flag is not used.",
+                     "tf pr create --title 'x' --body-file - <<'EOF'"]:
+            with self.subTest(line=line):
+                self.assertFalse(self.flagged(line))
+
+    def test_unsafe_tf_command_lines_still_fail(self):
+        for line in ['tf issue comment 3 --body "text `x`"', "tf issue comment 3 --body='it's'",
+                     "tf issue comment 3 --body $TEXT", "tf issue comment 3 --body",
+                     'tf issue create --title "a `b`" --body-file -', "tf pr create --title 'x' --body-file - <<EOF",
+                     "tf pr review 4 --verdict APPROVE --sha s --body-file - << EOF"]:
+            with self.subTest(line=line):
+                self.assertTrue(self.flagged(line))
 
 
 if __name__ == "__main__":

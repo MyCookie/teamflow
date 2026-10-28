@@ -104,7 +104,8 @@ part, in order. The release unit is never stacked.
 1. Check that every unit's PR is merged with `tf pr view <N>`. Queued merges
    were already driven in Review handoff step 4; do not ask the human to
    message you. If any is escalated or unmerged, apply the rule's
-   *Unmerged* case: spawn no release unit and report at once.
+   *Unmerged* case: spawn no release unit and report at once. If a unit carrying the bump
+   merged, go to step 4 for the version first.
 2. If no unit carries the bump and a merged unit touched a shipped path,
    update `main`, read `version` (the bump-from reading), and branch the
    release unit from `main`, with base branch `main` in the implementer's
@@ -113,7 +114,8 @@ part, in order. The release unit is never stacked.
    git worktree add ../<release-branch> -b chore/<lowest Issue number>-release-<version> main
    ```
 3. Run its Review handoff to a merge. A release PR that stays unmerged is
-   escalated like any PR (Review handoff step 6).
+   escalated like any PR (Review handoff step 6) and reported under the
+   rule's *Unmerged* case.
 4. Read the version for the report as the rule's *Report* reading says,
    once the bumping PR has merged, and end with the release line.
 

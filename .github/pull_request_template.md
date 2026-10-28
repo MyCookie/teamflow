@@ -9,7 +9,9 @@ Closes #<n>
 
 ## Evidence
 
-One row per acceptance criterion of the Issue:
+One row per acceptance criterion of the Issue. If the Issue has none (a
+review finding, or one a human filed), one row per stated defect or
+stated outcome instead, named in the first column:
 
 | Criterion | How it was verified | Result |
 | :--- | :--- | :--- |

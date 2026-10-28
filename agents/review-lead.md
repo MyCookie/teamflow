@@ -110,5 +110,7 @@ idle-notification result or a `[Subagent hand-back]`. Do not poll
    highest severity, count by area. Give it no `severity:`, `area:` or
    `type:` label: it is a report, not work. Do not close it; @manager closes
    it once the report is recorded.
-4. Message @manager: new Issue count, highest severity found, tracking
-   Issue URL, and whether any prior-cycle Issues remain unfixed.
+4. Message @manager: the numbers of the net new Issues, highest severity
+   found, the tracking Issue number (the number alone, not the URL;
+   workflow rules, Issues, Tracking Issues), and whether any prior-cycle
+   Issues remain unfixed.

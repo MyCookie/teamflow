@@ -38,13 +38,14 @@ author's say-so.**
 ## Handoffs
 
 - **Research → Implementation.** research-lead → @manager: tracking Issue
-  URL, Issue count, priority order. Manager → @impl-lead: "Begin planning
-  pass on open Issues. Show the plan before spawning."
+  number, the numbers of the Issues filed, priority order. Manager →
+  @impl-lead: "Begin planning pass on Issues #a, #b, ... (plan exactly
+  these). Show the plan before spawning."
   - *Auto-approval.* The one statement of the rule: the agent prompts point
     here. It applies when `teamflow-config teamflow_auto_approve` is `low`
     (the default; `none` turns it off, and then every plan waits for the
-    human, rule 4 and rule 6 of the loop check apply as written, and the
-    release is confirmed before review).
+    human, the loop check's severity-threshold stop and human question apply
+    as written, and the release is confirmed before review).
     - *All-low batch.* Every condition holds: each Issue in impl-lead's plan
       carries exactly one `severity:` label and it is `severity:low` (no
       label, or more than one, is not low); none carries `needs-discussion`;
@@ -64,18 +65,18 @@ author's say-so.**
       the human the plan was auto-approved and why, and sends "Plan
       approved. Begin spawning." without waiting. If a check fails, or an
       Issue cannot be read, the plan waits for the human as under `none`.
-    - *Loop.* When the next iteration's Issues (the cycle's new open Issues)
+    - *Loop.* The next iteration's Issues are the cycle's new Issues: the
+      manager names them to impl-lead, which plans exactly those. When they
       are all-low by the label conditions alone (owned files are known only
       at planning, where the plan check still runs), the manager does not
-      stop on the severity threshold (loop check rule 4) and does not ask the
-      per-cycle question (rule 6). It sends the human a notice instead.
-      Zero new Issues, a cycle that files more new Issues than it closed
-      (rule 3), the open-Issue floor and the high-severity escalation still
-      end or interrupt the loop.
-    - *Pause.* An iteration that ends with any PR escalated or left unmerged
-      stops the loop from starting the next iteration (rule 2), auto-approved
-      or not, all-low or not: the manager relays the escalation and waits for
-      the human to resolve it.
+      stop on the severity threshold and does not ask the per-cycle question;
+      it sends the human a notice instead. Zero new Issues, a cycle that
+      files more new Issues than it closed, the open-Issue floor and the
+      high-severity escalation still end or interrupt the loop.
+    - *Pause.* An iteration that ends with any PR escalated or unmerged
+      stops the loop from starting the next iteration, auto-approved or not,
+      all-low or not: the manager relays the escalation and waits for the
+      human to resolve it.
     - *Release.* For an auto-approved iteration the release line is
       validated as usual and the release recorded, but the update question
       moves from before the review to the end of the run, asked once. Agents
@@ -140,9 +141,11 @@ author's say-so.**
     every teamflow session, and confirm or skip before the review phase
     (for an auto-approved iteration, see Auto-approval).
     Agents never run the update: it changes the human's install.
-- **Review → Implementation (loop).** Manager runs the loop check; if
-  continuing, sends @impl-lead the new Issue list; if stopping, reports to
-  the human.
+- **Review → Implementation (loop).** review-lead → @manager: the numbers
+  of the new Issues, highest severity, tracking Issue number, and whether
+  prior-cycle Issues remain unfixed. Manager runs the loop check; if
+  continuing, sends @impl-lead the new Issue numbers (the next iteration
+  plans exactly those); if stopping, reports to the human.
 - **Review → Done.** Zero new Issues, or the loop check ends the loop: the manager reports
   final state to the human.
 
@@ -241,7 +244,8 @@ convention) becomes an ADR; the `domain-modeling` skill writes ADRs and
 teamflow depends on.
 
 ## Issues
-Labels: `severity:high|medium|low`, `needs-discussion`,
+Labels on work Issues (tracking Issues, below, carry none):
+`severity:high|medium|low`, `needs-discussion`,
 `area:architecture|security|quality|docs|simplicity|research`,
 `type:feature|bug|task`. Research Issues use `type:task`; review findings
 use their `area:` label. File with
@@ -268,6 +272,21 @@ records a decision and never stands in for one: no agent changes
 `severity:` or `needs-discussion` on its own judgment.
 Only the manager and the leads run `tf issue edit`; other agents report a
 label change to their lead instead.
+
+**Tracking Issues** are the reports a lead opens at the end of a pass
+(research-lead: its Issue list; review-lead: a review cycle). They carry no
+`severity:`, `area:` or `type:` label: a report, not work.
+- The lead reports the tracking Issue's number and the numbers of the Issues
+  it filed (review-lead: the net new ones), never a URL: `tf issue create`
+  prints a URL on GitHub and `#N` locally, and the number is its trailing
+  digits. The lead does not close it.
+- The manager records the number in `.manager-state.json`, runs
+  `tf issue view <n>`, and runs `tf issue close <n>` only if that Issue has
+  none of the three labels. Otherwise it reports to the human and closes
+  nothing: a wrong number would close real work.
+- The numbers recorded in `.manager-state.json` identify tracking Issues:
+  counts of open or filed work leave them out. On Startup the manager closes
+  any recorded one still open, the same way.
 
 **Research Issues are typed briefs**, so implementation and review can
 check each claim:

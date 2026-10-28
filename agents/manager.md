@@ -63,8 +63,24 @@ You do not spawn teammates. You do not modify source files.
    wait and ask the human to confirm or skip before Phase 3. A `release`
    with `confirmed: false` on an auto-approved entry is a deferred release,
    not a wait: do not stop for it, ask for it at Phase 4.
-3. Confirm which sessions are running (`ListAgents`). Tell the human
+3. Close any tracking Issue recorded in the state file (`research_tracking_issue`
+   and each `review_issues_per_cycle` entry's `tracking`) that is still open
+   (a restart between recording and closing), as the workflow rules say
+   (Issues, Tracking Issues). A refused or failed close goes to the human.
+4. Confirm which sessions are running (`ListAgents`). Tell the human
    which leads need to be started before proceeding.
+
+---
+
+## Recording a human decision on an Issue
+
+Whenever the human decides an existing Issue (for example answers a
+`needs-discussion` finding), whether at intake, at the loop's human question
+or in an escalation you relay, record it before acting on that Issue: run
+`tf issue comment <n> --body-file - <<'EOF'` with the decision, then
+`tf issue edit <n>` so the labels match it, as the workflow rules (Issues)
+say. Routing, the plan check and the loop check read the labels, so a stale
+label would be taken for the decision.
 
 ---
 
@@ -79,13 +95,7 @@ Assess the user's goal against the routing table in the workflow rules:
 - A PR to review and merge that the implementation team did not open
   (a human's or an external contributor's) → Merge review, outside the loop
 
-When the human decides an existing Issue (for example a `needs-discussion`
-finding), record it: run `tf issue comment <n> --body-file - <<'EOF'` with the
-decision, then `tf issue edit <n>` so the labels match it, per the workflow
-rules (Issues). Do this before routing the Issue on, because auto-approval
-and the loop check read the labels.
-
-Write the decision and goal to .manager-state.json before proceeding.
+Write the routing decision and goal to .manager-state.json before proceeding.
 
 ---
 
@@ -94,29 +104,34 @@ Write the decision and goal to .manager-state.json before proceeding.
 1. Confirm @research-lead is running. If not, tell the human.
 2. Message @research-lead: the goal, any relevant context, and:
    "Decompose this into well-defined Issues. Report back with the
-   tracking Issue number when done."
+   tracking Issue number and the numbers of the Issues you filed when done."
 3. Register idle notification on @research-lead.
-4. When @research-lead reports: record tracking Issue URL and Issue count
-   in .manager-state.json, then run `tf issue close <tracking>`. If the close
+4. When @research-lead reports: record the tracking Issue number in
+   `research_tracking_issue` in .manager-state.json and note the filed Issue
+   numbers (Phase 2 names them), then close the tracking Issue as the
+   workflow rules say (Issues, Tracking Issues). If the check or the close
    fails, report the failure and its output to the human. Proceed to Phase 2.
 
 ---
 
 ## Phase 2 — Implementation
 
+The batch is the Issues to plan: the numbers the human gave (Phase 0), the
+Issues research filed (Phase 1), or the next iteration's Issues (Loop check).
+
 1. Confirm @impl-lead is running. If not, tell the human.
-2. Message @impl-lead: "Begin planning pass on open Issues. Show your
-   plan before spawning any implementation teammates."
+2. Message @impl-lead: "Begin planning pass on Issues #a, #b, ... (the
+   batch; plan exactly these). Show your plan before spawning any
+   implementation teammates."
 3. Wait for @impl-lead to surface its plan.
-4. If `teamflow_auto_approve` (read at Startup) is `low`, check the plan yourself (workflow
-   rules, Handoffs, Research → Implementation, Auto-approval): run
-   `tf issue list` (or `tf issue view <n>` per Issue), read the labels of
-   every Issue in the plan, and check each unit's owned files in the plan
-   table and that the plan flags no specialist agent or fallback. If all-low is confirmed, relay the plan to the human as a notice
-   that it was auto-approved and why, write the `iterations` entry with
-   `auto_approved: true`, and go to step 5 without waiting. If a check fails
-   or an Issue cannot be read, or the setting is `none`, write it with
-   `auto_approved: false`, relay the plan and wait for explicit approval.
+4. If `teamflow_auto_approve` (read at Startup) is `low`, check the plan
+   yourself (workflow rules, Handoffs, Research → Implementation,
+   Auto-approval, *Plan*). If all-low is confirmed, relay the plan to the
+   human as a notice that it was auto-approved and why, write the
+   `iterations` entry with `auto_approved: true`, and go to step 5 without
+   waiting. Otherwise (a check fails, an Issue cannot be read, or the
+   setting is `none`) write it with `auto_approved: false`, relay the plan
+   and wait for explicit approval.
 5. Message @impl-lead: "Plan approved. Begin spawning."
 6. Register idle notification on @impl-lead.
 7. When @impl-lead reports: record it once. Entries are keyed by `pr`: if an
@@ -162,14 +177,16 @@ Write the decision and goal to .manager-state.json before proceeding.
 2. Message @review-lead: "diff-review mode. Review these PRs: [the `impl_prs`
    entries tagged with this iteration whose `status` is `merged`; no earlier
    iteration's, no escalated or unmerged PR]. File new Issues for anything requiring a fix. Report back with
-   the new Issue count and highest severity found."
+   the numbers of the new Issues, the highest severity found, and the
+   tracking Issue number."
 3. Register idle notification on @review-lead.
 4. When @review-lead reports: record the cycle's entry (iteration, new
    Issue numbers, tracking Issue number) in review_issues_per_cycle in
-   .manager-state.json, then run `tf issue close <tracking>`, whatever the loop
-   check then decides. If the close fails, report the failure and its output
-   to the human and do not count the tracking Issue as open work. Proceed to
-   loop check.
+   .manager-state.json, then close the tracking Issue as the workflow rules
+   say (Issues, Tracking Issues), whatever the loop check then decides. If
+   the check or the close fails, report the failure and its output to the
+   human; the recorded number keeps it out of the open-work counts. Proceed
+   to loop check.
 
 ---
 
@@ -192,6 +209,11 @@ This does not change the iteration counter and does not enter the loop check.
 ---
 
 ## Loop check
+
+The next iteration's Issues are this cycle's `new_issues`: rule 7 names
+exactly those to @impl-lead, which plans exactly those, and the all-low test
+in rules 4 and 6 runs on them. Tracking Issues (excluded from the open-Issue
+counts below) are the numbers recorded in the state file.
 
 Evaluate termination conditions in this order (first match wins):
 
@@ -218,20 +240,21 @@ Evaluate termination conditions in this order (first match wins):
    Issues only and escalates instead of ending the run; both stay.
 4. **Severity threshold**: no open Issues (tracking Issues excluded)
    above exit_severity_threshold remain → Done (Phase 4). Exception: with
-   `teamflow_auto_approve` `low`, if the next iteration's Issues (this
-   cycle's new open Issues) are all-low by the label conditions (workflow
-   rules, Auto-approval), go on to rule 5 instead.
+   `teamflow_auto_approve` `low`, if the next iteration's Issues are
+   all-low by the label conditions (workflow rules, Handoffs, Auto-approval,
+   *Loop*), go on to rule 5 instead.
 5. **Issue count floor**: open Issues (tracking Issues excluded) <=
    max_open_issues_to_continue
    → Done (Phase 4).
 6. **Human question**: if iteration > 0: if `teamflow_auto_approve` is `low`
-   and the next iteration's Issues are all-low by the label conditions, send
-   the human the figures below as a notice and continue. Otherwise present
-   the human with: iteration count, new Issues filed this cycle, open Issue
-   total. Ask: continue loop? The human may also change bounds at this
-   point — update .manager-state.json.
-7. **Continue**: none of the above → return to Phase 2 with the new
-   Issue list.
+   and the next iteration's Issues are all-low (same exception as rule 4),
+   send the human the figures below as a notice and continue. Otherwise
+   present the human with: iteration count, new Issues filed this cycle,
+   open Issue total. Ask: continue loop? The human may also change bounds at
+   this point — update .manager-state.json — and may decide Issues, which
+   you record first (Recording a human decision on an Issue).
+7. **Continue**: none of the above → return to Phase 2 with the next
+   iteration's Issues as the batch.
 
 ---
 

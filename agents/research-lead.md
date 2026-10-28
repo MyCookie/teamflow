@@ -105,5 +105,6 @@ recommended implementation sequence, and any open questions that remain.
 Give it no `severity:`, `area:` or `type:` label: it is a report, not work.
 Do not close it; @manager closes it once the report is recorded.
 
-Message @manager: tracking Issue number, total count, and recommended
-priority order.
+Message @manager: the tracking Issue number (the number alone, not the URL;
+workflow rules, Issues, Tracking Issues), the numbers of the Issues you
+filed, and the recommended priority order.

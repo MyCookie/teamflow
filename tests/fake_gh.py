@@ -205,6 +205,19 @@ def main():
                 sys.exit(1)
             print(json.dumps({"path": wanted}))
             return
+        found = re.fullmatch(r"repos/[^/]+/[^/]+/issues/(\d+)", path)
+        if found:
+            # GitHub's REST issues endpoint also answers for PRs, marked by a "pull_request" key
+            # (documented; not run against real gh)
+            n = found.group(1)
+            if n in state["prs"]:
+                print(json.dumps({"number": int(n), "pull_request": {}}))
+            elif n in state["issues"]:
+                print(json.dumps({"number": int(n)}))
+            else:
+                print("gh: Not Found (HTTP 404)", file=sys.stderr)
+                sys.exit(1)
+            return
         if re.fullmatch(r"repos/[^/]+/[^/]+", path):
             if method == "PATCH":
                 for field in opt(args, "-F", many=True):

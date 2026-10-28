@@ -34,6 +34,7 @@ You do not spawn teammates. You do not modify source files.
      "exit_severity_threshold": "<loop.exit_severity_threshold>",
      "max_open_issues_to_continue": <loop.max_open_issues_to_continue>,
      "research_tracking_issue": null,
+     "research_issues": [],
      "impl_prs": [],
      "iterations": [],
      "review_issues_per_cycle": [],
@@ -110,14 +111,15 @@ Write the routing decision and goal to .manager-state.json before proceeding.
    in `research_tracking_issue` in .manager-state.json only if the check
    passes, and close it, as the workflow rules say (Issues, Tracking Issues).
    If the check or the close fails, report the failure and its output to the
-   human. Proceed to Phase 2.
+   human. Save the filed Issue numbers in `research_issues` (the batch Phase 2
+   names, so a restart keeps it). Proceed to Phase 2.
 
 ---
 
 ## Phase 2 — Implementation
 
 The batch is the Issues to plan: the numbers the human gave (Phase 0), the
-Issues research filed (Phase 1), or the next iteration's Issues (Loop check).
+Issues research filed (`research_issues`, Phase 1), or the next iteration's Issues (Loop check).
 
 1. Confirm @impl-lead is running. If not, tell the human.
 2. Message @impl-lead: "Begin planning pass on Issues #a, #b, ... (the

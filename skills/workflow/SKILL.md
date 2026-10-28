@@ -94,12 +94,15 @@ author's say-so.**
     every session (`/reload-plugins` is untested for subagent definitions).
   - *Trigger.* A unit of the batch touches a shipped path (`agents/`,
     `skills/`, `bin/`, `hooks/`, `templates/`, `.claude-plugin/`). impl-lead
-    decides at planning and checks again before it reports. The batch gets
-    exactly one bump, because parallel units would otherwise all edit the
-    same line. Normally that is a final release unit that changes only the
-    `version` string, on branch `chore/<lowest Issue number in the batch>-release-<version>`
-    with a `Refs:` trailer per Issue in the batch. If a unit of the batch already bumps
-    `version`, that unit carries the bump and there is no release unit.
+    decides at planning and checks again before it reports.
+  - *One bump.* The batch gets exactly one bump, because parallel units
+    would otherwise all edit the same line. Normally that is a final release
+    unit that changes only the `version` string. If a unit of the batch
+    already bumps `version`, that unit carries the bump and there is no
+    release unit.
+  - *Branch.* The release unit's branch is
+    `chore/<lowest Issue number in the batch>-release-<version>`, with a
+    `Refs:` trailer per Issue in the batch.
   - *Bump.* Minor (0.x.0) when a release changes a contract agents rely on
     (a `tf` exit code, command, flag or output an agent prompt depends on; a
     workflow rule; an agent's steps), patch otherwise.
@@ -256,10 +259,13 @@ single quotes, with no quotes or backticks. No scratch file is needed.
 Relabel with `tf issue edit <n> [--add-label <l> ...] [--remove-label <l> ...]`.
 When a human decides an Issue (for example a `needs-discussion` finding),
 the agent that records the decision runs `tf issue comment` with the
-decision, then `tf issue edit` so the labels match it: remove
-`needs-discussion` once it is resolved, and leave exactly one `severity:`
-label. A label change records a decision and never stands in for one: no
-agent changes `severity:` or `needs-discussion` on its own judgment.
+decision, then `tf issue edit` so the labels match it. Once the human has
+answered the questions, remove `needs-discussion`. A `needs-discussion`
+Issue may carry no `severity:` label: the recording agent does not add one
+of its own choosing, and does not require exactly one. A `severity:` label
+changes only when the human's decision names a severity. A label change
+records a decision and never stands in for one: no agent changes
+`severity:` or `needs-discussion` on its own judgment.
 Only the manager and the leads run `tf issue edit`; other agents report a
 label change to their lead instead.
 

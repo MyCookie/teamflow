@@ -104,6 +104,7 @@ class QuotingCheck(unittest.TestCase):
                      "tf issue comment 3 --body <(echo hi)", "tf  issue comment 3 --body hello",
                      '"$TF" issue comment 3 --body "x"',
                      "cat <<EOF | tf issue create --title 't' --body-file -",
+                     "cat <<EOF > body.md", 'body=$(cat <<EOF', "cat << EOF > body.md", "cat <<eof > body.md",
                      'tf issue create --title "a `b`" --body-file -', "tf pr create --title 'x' --body-file - <<EOF",
                      "tf pr review 4 --verdict APPROVE --sha s --body-file - << EOF",
                      '  --body "wrapped"', "  --body-file - <<EOF"]:

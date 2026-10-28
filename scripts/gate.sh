@@ -70,18 +70,24 @@ step "unit tests" python3 -m unittest discover -s tests
 # Agents copy these command shapes, so bodies must reach tf as a quoted
 # heredoc on stdin (#9): double quotes run backtick spans as commands, and in
 # single quotes an apostrophe in prose ends the string and does the same.
-# The old pattern, kept whole (an inline --body in any form, a double-quoted
-# --title, a heredoc whose delimiter is not quoted), applied only to command
-# lines: a line naming a subcommand that takes a body (issue create|comment,
-# pr create|review, however tf is spelled) or starting with a flag (a wrapped
-# command). Prose such as "the --body flag" or "std::cout << x" has neither,
-# so it passes (#14).
-# shortcut: a heredoc or flag on a wrapped line that neither names a
-# subcommand nor starts with a flag is missed; upgrade if the docs wrap so.
+# An inline --body in any form and a double-quoted --title are flagged on
+# command lines only: a line naming a subcommand that takes a body (issue
+# create|comment, pr create|review, however tf is spelled) or starting with a
+# flag (a wrapped command). Prose such as "the --body flag" has neither, so it
+# passes (#14). A heredoc whose delimiter is not quoted is flagged on every
+# line, since it expands backticks and $ wherever it writes: <<WORD, or
+# << WORD with an uppercase delimiter, so "std::cout << x" passes.
+# shortcut: a body or title on a wrapped line that neither names a subcommand
+# nor starts with a flag is missed, and so is a heredoc with a space and a
+# lowercase delimiter; upgrade if the docs start doing either.
 quoting_is_safe() {
     local command='(issue|pr)[[:space:]]+(create|comment|review)|^[[:space:]]*--'
-    local unsafe='--body([[:space:]=]|$)|--title(=|[[:space:]]+)"|<<-?[[:space:]]*[A-Za-z_]'
-    ! { grep -rnE -- "$command" "$@" | grep -E -- "$unsafe"; }
+    local unsafe='--body([[:space:]=]|$)|--title(=|[[:space:]]+)"'
+    local heredoc='<<-?([A-Za-z_]|[[:space:]]+[A-Z_])'
+    local bad=0
+    grep -rnE -- "$command" "$@" | grep -E -- "$unsafe" && bad=1
+    grep -rnE -- "$heredoc" "$@" && bad=1
+    return "$bad"
 }
 step "agent docs pass bodies safely" quoting_is_safe agents skills README.md
 

@@ -388,6 +388,10 @@ def gate_timing():
     return wait, poll
 
 
+def pending_names(checks):
+    return [c["name"] for c in checks if c["bucket"] == "pending"]
+
+
 class GitHub:
     def __init__(self, cfg):
         self.cfg = cfg
@@ -526,12 +530,12 @@ class GitHub:
             raise RuntimeError(f"gh pr checks failed ({result.returncode}): {(result.stderr or result.stdout).strip()}")
         return [c for c in data if c["name"] != STATUS]
 
-    def settle(self, n, stop_if_enforced=False):
-        """Poll the PR's gating checks within one TF_GATE_WAIT deadline; True if a ruleset makes checks required.
+    def polls(self, n):
+        """Yield (required, checks, error) once per poll of the PR's gating checks, until one TF_GATE_WAIT deadline.
 
-        The required checks, or else the `gate` check, must have finished and passed: a red check exits 1,
-        a missing `gate` check 2, pending or unreadable CI at the deadline 3. With `stop_if_enforced` the
-        required checks need not finish (GitHub enforces them), only be readable. A failed or empty poll is retried.
+        `required` is the PR's required checks, `checks` those that gate it (the required ones, else the
+        `gate` check), `error` the failed read, if any. The caller stops the loop when it has what it needs;
+        the last yield is the state at the deadline. A failed or empty poll is retried.
         """
         wait, poll = gate_timing()
         deadline, announced = time.monotonic() + wait, False
@@ -542,31 +546,36 @@ class GitHub:
                 checks = required or [c for c in self.checks(n, required=False) if c["name"] == GATE]
             except RuntimeError as e:
                 required, checks, error = [], [], e  # transient: never fall back to `gate` alone on a failed --required query
+            yield required, checks, error
             left = deadline - time.monotonic()
-            pending = [c["name"] for c in checks if c["bucket"] == "pending"]
-            if required and stop_if_enforced or checks and not pending or left <= 0:
-                break
+            if left <= 0:
+                return
+            pending = pending_names(checks)
             if not announced and pending:
                 print(f"waiting for: {', '.join(pending)}", flush=True)
                 announced = True
             time.sleep(min(poll, left))
+
+    def judge(self, n, checks, error):
+        """Exit by the state polls() ended on: unreadable CI 3, no `gate` check 2, still pending 3, a red check 1."""
+        wait = gate_timing()[0]
         if error:
             raise Refused(f"could not read CI within {wait:g}s: {error}")
-        if required and stop_if_enforced:
-            return True
         if not checks:
             raise SetupError(f"#{n} has no `{GATE}` check; add templates/ci.yml as .github/workflows/gate.yml")
         for c in checks:
             print(f"{c['name']}: {c['bucket']}")
-        if pending:
-            raise Refused(f"CI did not finish within {wait:g}s; still running: {', '.join(pending)}")
+        if pending_names(checks):
+            raise Refused(f"CI did not finish within {wait:g}s; still running: {', '.join(pending_names(checks))}")
         if any(c["bucket"] != "pass" for c in checks):
             sys.exit(1)
-        return bool(required)
 
     def pr_gate(self, n):
-        """CI replaces the reviewer's local run."""
-        self.settle(n)
+        """CI replaces the reviewer's local run: the required checks, or else the `gate` check, must have passed."""
+        for required, checks, error in self.polls(n):
+            if checks and not pending_names(checks):
+                break
+        self.judge(n, checks, error)
 
     def approved(self, n, pr):
         latest = self.statuses(pr["headRefOid"])
@@ -583,17 +592,32 @@ class GitHub:
 
     def pr_merge(self, n):
         pr = self.head(n)
-        if pr["baseRefName"] != self.cfg["base"]:
-            raise Refused(f"#{n} targets {pr['baseRefName']}, not {self.cfg['base']}: merge its dependency first")
+        self.targets_base(n, pr)
         self.approved(n, pr)
         body = "\n".join([*(f"Closes #{i}" for i in closes(pr["body"])), "Reviewed-by: teamflow:code-reviewer"])
         args = ["pr", "merge", str(n), "--merge", "--match-head-commit", pr["headRefOid"],
                 "--subject", f"Merge {pr['headRefName']}: {pr['title']}", "--body", body]
-        if self.settle(n, stop_if_enforced=True):
+        for required, checks, error in self.polls(n):
+            if required or checks and not pending_names(checks):  # a ruleset enforces its required checks
+                break
+        if not required:
+            self.judge(n, checks, error)
+        # the wait may have outlived what was checked above; only tf rechecks it (the ruleset does not)
+        now = self.head(n)
+        if now["headRefOid"] != pr["headRefOid"]:
+            raise Refused(f"#{n}'s head moved from {pr['headRefOid'][:12]} to {now['headRefOid'][:12]} during the wait; review the new head")
+        if now["state"] != "OPEN":
+            raise Refused(f"#{n} is not open any more ({now['state'].lower()})")
+        self.targets_base(n, now)
+        if required:
             print(self.gh(*args, "--auto") or f"#{n}: auto-merge enabled; GitHub merges once every required check passes")
             return
-        self.approved(n, pr)  # unenforced: the wait may have outlived the verdict, and only tf checks it
+        self.approved(n, pr)
         print(self.gh(*args) or f"#{n}: merged")
+
+    def targets_base(self, n, pr):
+        if pr["baseRefName"] != self.cfg["base"]:
+            raise Refused(f"#{n} targets {pr['baseRefName']}, not {self.cfg['base']}: merge its dependency first")
 
 
 # -- setup -------------------------------------------------------------------

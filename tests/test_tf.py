@@ -8,7 +8,6 @@ import os
 import shutil
 import subprocess
 import tempfile
-import time
 import unittest
 from pathlib import Path
 
@@ -635,17 +634,54 @@ class GitHubFlow(unittest.TestCase):
         head = self.open_pr()
         self.ok("pr", "review", "2", "--verdict", "APPROVE", "--sha", head, "--body", "ok", cwd=self.rev)
         self.set_checks(head, "pending")  # no required checks, and the `gate` check never finishes
-        wait = 2
-        state = self.gh_state()  # the required-checks read fails for 60% of the wait, then reports none
-        state["required_errors_until"] = time.time() + 0.6 * wait
+        wait, poll, errors = 3, 0.2, 7
+        state = self.gh_state()  # the required-checks read fails for 7 polls, then reports none
+        state["required_errors"] = errors
         self.state.write_text(json.dumps(state))
-        start = time.monotonic()
-        result = self.tf("pr", "merge", "2", cwd=self.rev, env={"TF_GATE_WAIT": str(wait), "TF_GATE_POLL": "0.05"})
-        elapsed = time.monotonic() - start
+        result = self.tf("pr", "merge", "2", cwd=self.rev, env={"TF_GATE_WAIT": str(wait), "TF_GATE_POLL": str(poll)})
         self.assertEqual(result.returncode, 3, result.stdout + result.stderr)
         self.assertIn("still running: gate", result.stderr)
-        self.assertLess(elapsed, wait + 0.7, "two deadlines in a row would take about 3.2s")
+        # One deadline allows at most wait/poll + 1 polls in all, and `errors` of them were spent failing.
+        # A second deadline after the required checks recover would add up to wait/poll more `gate` reads.
+        self.assertLessEqual(self.gh_state()["reads"]["all"], wait / poll + 1 - errors)
         self.assertEqual(self.gh_state()["merges"], [])
+
+    def merge_while_the_pr_changes(self, change):
+        """tf pr merge on an approved head whose CI is pending; the PR then changes as `change` says."""
+        head = self.open_pr()
+        self.ok("pr", "review", "2", "--verdict", "APPROVE", "--sha", head, "--body", "ok", cwd=self.rev)
+        self.set_check_seq(head, ["pending", "pass"])
+        self.set_check_seq("1" * 40, ["pass"])
+        state = self.gh_state()
+        state["change_on_pending"] = change
+        self.state.write_text(json.dumps(state))
+        result = self.tf("pr", "merge", "2", cwd=self.rev, env={"TF_GATE_WAIT": "30", "TF_GATE_POLL": "0.01"})
+        self.assertEqual(result.returncode, 3, result.stdout + result.stderr)
+        self.assertEqual(self.gh_state()["merges"], [])
+        return result.stderr
+
+    def test_merge_refuses_a_head_that_moved_during_the_wait(self):
+        self.assertIn("head moved", self.merge_while_the_pr_changes({"oid": "1" * 40}))
+
+    def test_merge_refuses_a_pr_retargeted_during_the_wait(self):
+        self.assertIn("targets feat/0-dep", self.merge_while_the_pr_changes({"base": "feat/0-dep"}))
+
+    def test_merge_refuses_a_pr_closed_during_the_wait(self):
+        self.assertIn("not open", self.merge_while_the_pr_changes({"state": "CLOSED"}))
+
+    def test_gate_treats_a_non_list_or_stdout_only_failure_as_unreadable_ci(self):
+        head = self.open_pr()
+        self.set_checks(head, "pass")
+        bound = {"TF_GATE_WAIT": "0.1", "TF_GATE_POLL": "0.01"}
+        for stdout in ('{"message": "boom"}', "<html>boom</html>"):  # gh failures that print only to stdout
+            with self.subTest(stdout=stdout):
+                state = self.gh_state()
+                state["checks_stdout"] = stdout
+                self.state.write_text(json.dumps(state))
+                result = self.tf("pr", "gate", "2", cwd=self.rev, env=bound)
+                self.assertEqual(result.returncode, 3, result.stdout + result.stderr)
+                self.assertIn("could not read CI", result.stderr)
+                self.assertIn("boom", result.stderr)
 
     def test_unenforced_merge_rereads_the_approval_after_the_wait(self):
         head = self.open_pr()
@@ -721,12 +757,11 @@ class GitHubFlow(unittest.TestCase):
             with self.subTest(bucket=bucket):
                 self.set_checks(head, bucket, required=True)
                 state = self.gh_state()
-                state["merges"] = []
+                state["merges"], state["reads"] = [], {"required": 0, "all": 0}
                 self.state.write_text(json.dumps(state))
-                start = time.monotonic()
                 result = self.tf("pr", "merge", "2", cwd=self.rev, env={"TF_GATE_WAIT": "30", "TF_GATE_POLL": "0.01"})
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-                self.assertLess(time.monotonic() - start, 10)  # far under TF_GATE_WAIT
+                self.assertEqual(self.gh_state()["reads"], {"required": 1, "all": 0})  # one read, no waiting
                 self.assertTrue(self.gh_state()["merges"][-1]["auto"])
 
     def test_missing_gh_stops(self):

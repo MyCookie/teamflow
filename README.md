@@ -180,7 +180,7 @@ What follows is what a human does.
   changes your install. The manager asks you to confirm or skip it before
   review, or once at the end of an auto-approved all-low run.
 - **Not tested.** Not verified here: these points come from the Claude Code
-  docs, which the maintainer's research read and this README did not re-check
+  docs, which a research-lead session read and this README did not re-check
   (the manifest's `version` overriding the marketplace entry's, the cached
   copy staying until the string changes, whether auto-update is on by default
   for a marketplace, and the update command's behaviour), and from one

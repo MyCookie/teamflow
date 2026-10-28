@@ -88,6 +88,9 @@ class LocalFlow(unittest.TestCase):
         self.assertIn("labels: severity:low\n", self.ok("issue", "view", "1"))
         self.assertIn("labels: severity:low, a", self.ok("issue", "edit", "1", "--add-label", "a",
                                                           "--add-label", "severity:low"))  # no duplicate, order kept
+        self.assertIn("labels: severity:low, a, b\n", self.ok("issue", "edit", "1", "--add-label", "b",
+                                                              "--add-label", "b"))  # a repeated new label is stored once
+        self.ok("issue", "edit", "1", "--remove-label", "b")
         self.assertIn("labels: severity:low", self.ok("issue", "edit", "1", "--remove-label", "a", "--remove-label", "nope"))
         self.assertIn("labels: -", self.ok("issue", "edit", "1", "--remove-label", "severity:low"))
         self.ok("issue", "close", "1")
@@ -98,9 +101,16 @@ class LocalFlow(unittest.TestCase):
 
     def test_issue_edit_refusals(self):
         self.ok("issue", "create", "--title", "Bug", "--body-file", str(self.body), "--label", "x")
-        self.refused("issue", "edit", "1", code=2)  # no flags
-        self.refused("issue", "edit", "1", "--add-label", "y", "--remove-label", "y", code=2)
+        self.assertIn("issue edit needs --add-label or --remove-label", self.refused("issue", "edit", "1", code=2))
+        self.assertIn("label on both --add-label and --remove-label: y",
+                      self.refused("issue", "edit", "1", "--add-label", "y", "--remove-label", "y", code=2))
+        for bad in ("", "a,b", "a\nb", "a\x1bb", "a\x85b"):  # empty, comma, control characters (C0 and C1)
+            for flag in ("--add-label", "--remove-label"):
+                self.assertIn("invalid label", self.refused("issue", "edit", "1", flag, bad, code=2))
+            self.assertIn("invalid label", self.refused("issue", "create", "--title", "t", "--body", "b",
+                                                        "--label", bad, code=2))
         self.assertIn("labels: x\n", self.ok("issue", "view", "1"))  # nothing changed
+        self.refused("issue", "view", "2")  # no Issue was created
         self.refused("issue", "edit", "99", "--add-label", "x")  # missing
         git("worktree", "add", "-q", "-b", "feat/1-v2", str(self.impl), cwd=self.main)
         (self.impl / "app.txt").write_text("v2\n")
@@ -455,9 +465,18 @@ class GitHubFlow(unittest.TestCase):
         self.assertIn("labels: severity:low\n", self.ok("issue", "view", "1"))
         self.assertIn("#1", self.ok("issue", "list", "--label", "severity:low"))
         self.assertEqual(self.ok("issue", "list", "--label", "needs-discussion"), "")
-        self.code(2, "issue", "edit", "1")  # no flags
-        self.code(2, "issue", "edit", "1", "--add-label", "y", "--remove-label", "y")
+        self.assertIn("issue edit needs --add-label or --remove-label", self.code(2, "issue", "edit", "1"))
+        self.assertIn("label on both --add-label and --remove-label: y",
+                      self.code(2, "issue", "edit", "1", "--add-label", "y", "--remove-label", "y"))
+        for bad in ("", "a,b", "a\nb", "a\x1bb", "a\x85b"):  # empty, comma, control characters (C0 and C1)
+            for flag in ("--add-label", "--remove-label"):
+                self.assertIn("invalid label", self.code(2, "issue", "edit", "1", flag, bad))
+            self.assertIn("invalid label", self.code(2, "issue", "create", "--title", "t", "--body", "b", "--label", bad))
         self.assertIn("labels: severity:low\n", self.ok("issue", "view", "1"))  # nothing changed
+        self.assertEqual(list(self.gh_state()["issues"]), ["1"])  # the bad create made no Issue
+        # an unknown number reaches gh, which fails (exit 1, not tf's usage error)
+        err = self.code(1, "issue", "edit", "99", "--add-label", "x")
+        self.assertIn("could not resolve to an Issue", err)  # fake_gh's answer; real gh's wording not run
 
     def test_pr_view_shows_the_merge_state(self):
         self.open_pr()

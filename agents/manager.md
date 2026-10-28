@@ -21,7 +21,10 @@ You do not spawn teammates. You do not modify source files.
 0. Load the `teamflow:workflow` skill before anything else.
 1. Read the loop bounds with `teamflow-config loop`. They come from the
    repository's `.claude/teamflow.json`, with defaults for anything unset.
-   Also read `teamflow-config teamflow_auto_approve` (`low` or `none`).
+   Also read `teamflow-config teamflow_auto_approve` (`low` or `none`). Read
+   it on every start, resumed runs included: the config value decides, and
+   the state file does not keep a copy (anyone can write that file, and the
+   setting is the human's off switch for skipping a human gate).
 2. Load or initialise .manager-state.json:
    ```json
    {
@@ -29,31 +32,37 @@ You do not spawn teammates. You do not modify source files.
      "phase": "intake",
      "iteration": 0,
      "exit_severity_threshold": "<loop.exit_severity_threshold>",
-     "teamflow_auto_approve": "<teamflow_auto_approve>",
      "max_open_issues_to_continue": <loop.max_open_issues_to_continue>,
      "research_tracking_issue": null,
      "impl_prs": [],
-     "release": null,
      "iterations": [],
      "review_issues_per_cycle": [],
      "sessions_ready": []
    }
    ```
    Each `impl_prs` entry is `{"iteration": <n>, "pr": <number>, "closes": [<issue numbers>],
-   "verdict": "<final code-reviewer verdict>", "status": "merged|escalated|unmerged"}`,
-   tagged with the iteration that opened it (Phase 2 step 7); loop check rules
-   2 and 3 and Phase 4 read it.
-   `release` is `{"version": "<version>", "confirmed": false}` while a
-   release confirmation is pending (Phase 2 step 7), set to `confirmed: true`
-   when the human confirms or skips. Each `review_issues_per_cycle` entry is
-   `{"iteration": <n>, "new_issues": [<numbers>], "tracking": <number>}`.
-   Each `iterations` entry is `{"iteration": <n>, "auto_approved": <bool>}`;
-   an auto-approved iteration with a version in its release line also has
-   `"deferred_release": "<version>"` (Phase 2 step 7, Phase 4).
-   If `release` exists with `confirmed: false` (only a non-auto-approved
-   iteration sets it), you were restarted mid-release: resume the wait and ask the
-   human to confirm or skip before Phase 3. A deferred release is not a wait:
-   do not stop for it, ask for it at Phase 4.
+   "status": "merged|unmerged"}`, tagged with the iteration that opened it
+   (Phase 2 step 7); `unmerged` covers an escalated PR too, because every
+   rule treats them alike (the reason goes to the human at step 7). Loop
+   check rules 2 and 3 and Phase 4 read it. Each `review_issues_per_cycle`
+   entry is `{"iteration": <n>, "new_issues": [<numbers>], "tracking": <number>}`.
+   Each `iterations` entry is
+   `{"iteration": <n>, "auto_approved": <bool>, "release": null}`. Phase 2
+   step 4 writes it, numbered `iteration + 1` (the value step 7 increments
+   to, so it matches the `impl_prs` and `review_issues_per_cycle` entries of
+   the same iteration); if the entry for that number exists already (a
+   restart), reuse it. This is the only release record, and a new
+   iteration starts with `release: null`, so nothing stale carries over.
+   Step 7 sets `release` to `{"version": "<version>", "confirmed": false}`
+   only when the release line names a version. `confirmed` becomes `true`
+   when the human confirms or skips an update, on every entry that has a
+   `release`: one update installs `main`'s current version, which includes
+   any earlier one.
+   If an entry has `auto_approved: false` and a `release` that is not null
+   with `confirmed: false`, you were restarted mid-release: resume the
+   wait and ask the human to confirm or skip before Phase 3. A `release`
+   with `confirmed: false` on an auto-approved entry is a deferred release,
+   not a wait: do not stop for it, ask for it at Phase 4.
 3. Confirm which sessions are running (`ListAgents`). Tell the human
    which leads need to be started before proceeding.
 
@@ -99,14 +108,14 @@ Write the decision and goal to .manager-state.json before proceeding.
 2. Message @impl-lead: "Begin planning pass on open Issues. Show your
    plan before spawning any implementation teammates."
 3. Wait for @impl-lead to surface its plan.
-4. If `teamflow_auto_approve` is `low`, check the plan yourself (workflow
+4. If `teamflow_auto_approve` (read at Startup) is `low`, check the plan yourself (workflow
    rules, Handoffs, Research → Implementation, Auto-approval): run
    `tf issue list` (or `tf issue view <n>` per Issue), read the labels of
    every Issue in the plan, and check each unit's owned files in the plan
    table and that the plan flags no specialist agent or fallback. If all-low is confirmed, relay the plan to the human as a notice
-   that it was auto-approved and why, record the iteration with
+   that it was auto-approved and why, write the `iterations` entry with
    `auto_approved: true`, and go to step 5 without waiting. If a check fails
-   or an Issue cannot be read, or the setting is `none`, record
+   or an Issue cannot be read, or the setting is `none`, write it with
    `auto_approved: false`, relay the plan and wait for explicit approval.
 5. Message @impl-lead: "Plan approved. Begin spawning."
 6. Register idle notification on @impl-lead.
@@ -118,24 +127,32 @@ Write the decision and goal to .manager-state.json before proceeding.
    `impl_prs` entry per PR in the report to .manager-state.json, tagged with
    the new counter value (the number this iteration's `review_issues_per_cycle`
    entry carries). Each PR has been through code-reviewer rounds and
-   merged, or was escalated; set `status` from `tf pr view <N>` (`merged`) or
-   the report (`escalated`, `unmerged`), and relay any escalation to the human.
+   merged, or was escalated; set `status` to `merged` if `tf pr view <N>` shows
+   it merged, otherwise `unmerged`, and relay any escalation or unmerged PR
+   with its reason to the human.
    Every impl-lead report ends with one release line (workflow rules,
-   Handoffs, Release). If the line is missing or matches none of its forms,
-   or names a version that is not `version` in `.claude-plugin/plugin.json` on
-   `main`, treat it as unresolved: ask @impl-lead for the line and do not
-   enter Phase 3. Its answer supplies only the line: it is not a new report,
-   so do not record it again. Relay an "unmerged" line, or an unmerged PR the report body
-   names beside a version line, to the human. If the line names a version and
-   this iteration was auto-approved, record `deferred_release: "<version>"`
-   on its `iterations` entry and go to Phase 3 without waiting; the update
-   question is asked once at Phase 4. Otherwise, if it names a version, ask
-   the human to run the update and restart as the workflow rule says (you do
-   not run it), record
-   `release: {"version": "<version>", "confirmed": false}` in
-   .manager-state.json and wait for the human to confirm or explicitly skip
-   (then set `confirmed: true`) before Phase 3, so the review runs on the code
-   it reviews. Then proceed to Phase 3.
+   Handoffs, Release). Check it, and treat it as
+   unresolved (ask @impl-lead for the line, do not enter Phase 3, and do not
+   record its answer again: it supplies only the line) if
+   - it is missing or matches none of the forms, or
+   - it names a version that is not `version` in `.claude-plugin/plugin.json`
+     on `main`, or a version equal to the `release.version` of an earlier
+     iteration's entry (no bump happened this batch), or
+   - the PR it names is not as the line says by `tf pr view <N>` (merged for
+     "merged in" and "carried by", not merged for "unmerged").
+   "No release: no shipped path changed" is relayed as impl-lead's statement:
+   you cannot check it. An "unmerged" line, or an unmerged PR the report body
+   names beside a version line, is relayed to the human, and you proceed
+   as for the other lines (an unmerged PR does not hold Phase 3, and loop
+   check rule 2 stops the next iteration). If the line names a version,
+   first set `release` on this iteration's entry (shape in Startup), before
+   you ask anything (a restart in between must find the marker). Then, if the iteration was
+   auto-approved, go to Phase 3 without waiting; the update question is asked
+   once at Phase 4. Otherwise ask the human to run the update and restart as
+   the workflow rule says (you do not run it) and wait for the human to
+   confirm or explicitly skip (then set `confirmed: true`) before Phase 3, so
+   the review runs on the code it reviews. A line with no version leaves
+   `release` null. Then proceed to Phase 3.
 
 ---
 
@@ -180,7 +197,7 @@ Evaluate termination conditions in this order (first match wins):
 
 1. **Clean**: review team filed 0 new Issues → Done (Phase 4).
 2. **Escalated or unmerged PR**: any `impl_prs` entry tagged with the
-   iteration just reviewed has `status` `escalated` or `unmerged` → do not
+   iteration just reviewed has `status` other than `merged` (`unmerged`, or `escalated` in an older state file) → do not
    start the next iteration. Relay the escalation to the human and wait for them to resolve
    it, whatever `teamflow_auto_approve` says and whether or not the next
    iteration's Issues are all-low. This comes before the auto-approval
@@ -233,11 +250,13 @@ Report to the human:
   shipped-path changes left behind are not tracked and ship with the next
   release (workflow rules, Handoffs, Release). Otherwise say nothing of it.
 - Remaining open Issues (count + links)
-- The iterations that ran without approval (`auto_approved: true`) and, if
-  any iteration has a `deferred_release` and the human has not already
-  confirmed or skipped an update for that version (`release.confirmed`),
-  the version now on `main`: ask the human once to run `claude plugin update teamflow@teamflow --scope project`
-  and restart every session. You do not run it.
+- The iterations that ran without approval (`auto_approved: true`, no human
+  plan approval) and, if any `iterations` entry has a `release` with
+  `confirmed: false` (only auto-approved entries can: the human settled the
+  others, and settling one settles all), the highest such version, which is
+  the one now on `main`: ask the human once to run
+  `claude plugin update teamflow@teamflow --scope project` and restart every
+  session. You do not run it.
 - Why the loop ended: clean, no progress (filed vs closed), severity
   threshold, the open-Issue floor, the human stopped it (rule 6 answer, or
   declining to resolve an escalated or unmerged PR, rule 2), or a

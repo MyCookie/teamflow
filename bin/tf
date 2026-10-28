@@ -6,18 +6,18 @@
     tf issue create --title T (--body B | --body-file F) [--label L ...]   # F may be - for stdin
     tf issue list [--label L ...]                # open Issues carrying any label
     tf issue view N
-    tf issue comment N (--body B | --body-file F)
+    tf issue comment N (--body B | --body-file F)   # F may be - for stdin
     tf issue edit N [--add-label L ...] [--remove-label L ...]   # at least one flag
     # a label is non-empty, printable, with no comma, on create and edit (else exit 2)
     tf issue close N
-    tf pr create --title T (--body B | --body-file F) [--base B]
+    tf pr create --title T (--body B | --body-file F) [--base B]   # F may be - for stdin
     tf pr list
     tf pr view N
     tf pr checkout N                             # code-reviewer worktree only
     tf pr claim N | tf pr release N
     tf pr gate N
     tf pr diff N [PATH ...]                      # base...head, after tf pr checkout
-    tf pr review N --verdict APPROVE|REQUEST_CHANGES --sha SHA (--body B | --body-file F)
+    tf pr review N --verdict APPROVE|REQUEST_CHANGES --sha SHA (--body B | --body-file F)   # F may be - for stdin
     tf pr merge N
 
 The mode comes from `forge` in .claude/teamflow.json (see teamflow-config):

@@ -49,29 +49,24 @@ starts once this is on the base branch. The `teamflow:setup` skill walks
 through it and lists the checks that the team works.
 
 **Auto mode.** A manager session reported on 2026-10-27 (Claude Code
-version not recorded; not re-run here) that, in GitHub mode under auto mode,
-the classifier refused `tf issue close` as an external system write
-("[External System Writes]") and that the same command exited 0 once
-`"Bash(tf *)"` was in `permissions.allow`. Reviewer `tf pr merge` runs were
-also reported refused ("[Merge Without Review]"), including with the rule in
-the shared file; the cause is unverified, so the rule may not cover merges.
-The quoted reason and the rule syntax were not checked against Claude
-Code's permission documentation. If auto mode stops your sessions, add
-`"Bash(tf *)"` to `permissions.allow` in a settings file of the repository
-root where the leads start:
+version not recorded; not re-run here) that auto mode refused `tf issue
+close` ("[External System Writes]") until `"Bash(tf *)"` was in
+`permissions.allow`, and refused reviewer `tf pr merge` runs ("[Merge Without
+Review]") even with the rule in the shared file, cause unverified. The
+reasons and rule syntax were not checked against Claude Code's docs. If auto
+mode stops your sessions, add the rule to an existing `permissions.allow` in
+the repository root where the leads start:
 
 - `.claude/settings.json` is committed, so every worktree and collaborator
-  gets it. teamflow's own repository carries the rule there (read, not
-  tested). This grants every collaborator's sessions every `tf` subcommand,
-  including `tf pr merge` and `tf setup --apply`.
-- `.claude/settings.local.json` is per user and uncommitted. A worktree
-  created later has no copy (checked in a scratch repository), and `tf setup`
-  does not add it to `.gitignore`.
+  gets the rule. It matches every `tf` subcommand, `tf pr merge` and `tf
+  setup --apply` included; that it lets a merge pass is unverified. teamflow's
+  own repository carries it here; whether it also needs `settings.local.json`
+  is untested.
+- `.claude/settings.local.json` is per user and uncommitted; a later worktree
+  has no copy (checked in a scratch repository), and `tf setup` does not
+  gitignore it.
 
-Add the rule to an existing `permissions.allow`; do not replace the file.
-Which file to use is your decision. Untested: whether a running session
-picks the rule up without a restart, whether subagents inherit it, and any
-other `tf` write or local mode.
+The choice is yours. Other cases are untested.
 
 **Settings** live in `.claude/teamflow.json`; defaults apply for anything
 unset, and `teamflow-config` prints the effective values:
@@ -87,10 +82,10 @@ red/green evidence. `teamflow_auto_approve` is `low` (default) or `none`:
 under `low` the manager skips the plan approval and the per-cycle question for
 a batch of only `severity:low` Issues, does not stop the loop on the
 severity threshold for such a batch, and asks for the plugin update once at
-the end instead of before review. A unit that owns files under `agents/`,
-`skills/` or `.github/`, or a rule file (`.claude/teamflow.json`,
-`scripts/gate.sh`, the CI or ruleset template), or an Issue labelled
-`needs-discussion`, still waits for you; the workflow skill defines the
+the end instead of before review. The plan still waits for you if a unit
+owns files under `agents/`, `skills/` or `.github/`, or a rule file
+(`.claude/teamflow.json`, `scripts/gate.sh`, the CI or ruleset template), or
+an Issue is labelled `needs-discussion`; the workflow skill defines the
 conditions. `none` turns it off. This flow has not been run live.
 
 **Migrating:** `loop.max_iterations` and `loop.human_checkpoint` are removed.

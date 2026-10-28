@@ -5,6 +5,7 @@
 
 import json
 import os
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -79,6 +80,30 @@ class Setup(unittest.TestCase):
         self.assertIn("settings.json is not valid JSON", out)
         self.assertNotIn("Traceback", out)
 
+    def test_json_that_is_not_an_object_is_a_setup_error_not_a_traceback(self):
+        (self.repo / ".claude").mkdir()
+        for name in ("settings.json", "teamflow.json"):
+            (self.repo / ".claude" / name).write_text("[]")
+            with self.subTest(file=name):
+                out = self.tf(code=2)
+                self.assertIn(f"{name} is not a JSON object", out)
+                self.assertNotIn("Traceback", out)
+            (self.repo / ".claude" / name).unlink()
+
+    def test_a_broken_template_is_a_setup_error_not_a_traceback(self):
+        plugin = Path(self.tmp.name) / "plugin"
+        (plugin / "bin").mkdir(parents=True)
+        for name in ("tf", "teamflow-config"):
+            shutil.copy(Path(TF).parent / name, plugin / "bin" / name)
+        shutil.copytree(TEMPLATES, plugin / "templates")
+        (plugin / "templates" / "branch-ruleset.json").write_text("{nope")
+        self.github_repo()
+        env = self.fake_gh_env(remote_files=[".github/workflows/gate.yml"])
+        result = sh(str(plugin / "bin" / "tf"), "setup", "--forge", "github", cwd=self.repo, env=env)
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("branch-ruleset.json is not valid JSON", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+
     def test_second_apply_changes_nothing_and_never_overwrites(self):
         self.tf("--apply")
         (self.repo / "scripts" / "gate.sh").write_text("#!/bin/sh\n# customised\n")
@@ -95,6 +120,15 @@ class Setup(unittest.TestCase):
         out = self.tf("--forge", "github", env=self.fake_gh_env())
         self.assertIn("forge local", out)
         self.assertEqual(json.loads((self.repo / ".claude" / "teamflow.json").read_text()), {"forge": "local"})
+
+    def test_github_uses_the_remote_the_config_names_unless_one_is_given(self):
+        (self.repo / ".claude").mkdir()
+        (self.repo / ".claude" / "teamflow.json").write_text(json.dumps({"forge": "github", "remote": "upstream"}))
+        git("remote", "add", "upstream", str(Path(self.tmp.name) / "github.com" / "me" / "repo.git"), cwd=self.repo)
+        env = self.fake_gh_env()
+        self.tf("--forge", "github", env=env)  # no origin remote at all: only the configured one works
+        out = self.tf("--forge", "github", "--remote", "origin", env=env, code=2)
+        self.assertIn("remote 'origin'", out)
 
     def fake_gh_env(self, **state):
         fakebin = Path(self.tmp.name) / "fakebin"

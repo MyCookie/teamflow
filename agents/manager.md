@@ -110,7 +110,11 @@ Write the decision and goal to .manager-state.json before proceeding.
    `auto_approved: false`, relay the plan and wait for explicit approval.
 5. Message @impl-lead: "Plan approved. Begin spawning."
 6. Register idle notification on @impl-lead.
-7. When @impl-lead reports: increment the iteration counter, then add one
+7. When @impl-lead reports: record it once. Entries are keyed by `pr`: if an
+   `impl_prs` entry already carries a PR of this report, the report is already
+   recorded (a retry answer or a restart), so skip the increment and the
+   entries below and use that entry's `iteration`. Otherwise increment the
+   iteration counter, then add one
    `impl_prs` entry per PR in the report to .manager-state.json, tagged with
    the new counter value (the number this iteration's `review_issues_per_cycle`
    entry carries). Each PR has been through code-reviewer rounds and
@@ -120,7 +124,8 @@ Write the decision and goal to .manager-state.json before proceeding.
    Handoffs, Release). If the line is missing or matches none of its forms,
    or names a version that is not `version` in `.claude-plugin/plugin.json` on
    `main`, treat it as unresolved: ask @impl-lead for the line and do not
-   enter Phase 3. Relay an "unmerged" line, or an unmerged PR the report body
+   enter Phase 3. Its answer supplies only the line: it is not a new report,
+   so do not record it again. Relay an "unmerged" line, or an unmerged PR the report body
    names beside a version line, to the human. If the line names a version and
    this iteration was auto-approved, record `deferred_release: "<version>"`
    on its `iterations` entry and go to Phase 3 without waiting; the update
@@ -137,8 +142,9 @@ Write the decision and goal to .manager-state.json before proceeding.
 ## Phase 3 — Review
 
 1. Confirm @review-lead is running. If not, tell the human.
-2. Message @review-lead: "diff-review mode. Review these PRs: [list from
-   state]. File new Issues for anything requiring a fix. Report back with
+2. Message @review-lead: "diff-review mode. Review these PRs: [the `impl_prs`
+   entries tagged with this iteration whose `status` is `merged`; no earlier
+   iteration's, no escalated or unmerged PR]. File new Issues for anything requiring a fix. Report back with
    the new Issue count and highest severity found."
 3. Register idle notification on @review-lead.
 4. When @review-lead reports: record the cycle's entry (iteration, new
@@ -216,7 +222,7 @@ Evaluate termination conditions in this order (first match wins):
 
 Report to the human:
 - Total iterations completed
-- Total PRs opened and merged (count `impl_prs`)
+- PRs opened (count `impl_prs`) and merged (entries with `status` `merged`)
 - Every PR left escalated or unmerged in the run (`impl_prs` entries whose
   `status` is not `merged`, each confirmed with `tf pr view <N>`, because
   state is not updated when the human resolves one): number, iteration and

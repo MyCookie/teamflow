@@ -10,10 +10,12 @@ contents API finds on the default branch. "check_seq" maps a head SHA to a list
 of buckets for the `gate` check: each `pr checks` call reads the first and drops
 it, except the last, which stays. A bucket of "empty" answers with no checks, and
 "error" fails the call with an HTTP 502. "required_errors" is a count of
-`pr checks --required` calls that fail that way before the rest answer; "required_errors_until"
-is the same for a wall-clock time (seconds since the epoch). "revoke_on_pending" makes a `pr checks`
+`pr checks --required` calls that fail that way before the rest answer. "reads" counts the `pr checks`
+calls, as {"required": n, "all": m}. "checks_stdout" makes every `pr checks` call print that text
+and exit 1 with nothing on stderr. "revoke_on_pending" makes a `pr checks`
 answer that holds a pending check also record a failure of the review status on the head, as
-a reviewer rejecting it meanwhile would. A `pr checks`
+a reviewer rejecting it meanwhile would. "change_on_pending" does the same with a dict of PR fields
+(`base`, `state`, `oid` for a new head SHA) that it sets on the PR, as a push, a retarget or a close would. A `pr checks`
 answer that holds a pending check exits 8, which `gh pr checks --help` documents as
 "8: Checks pending". The help does not say what `--json` prints or exits with, so that
 the JSON is still printed alongside exit 8 is unverified; it is what this fake does.
@@ -24,7 +26,6 @@ import os
 import re
 import subprocess
 import sys
-import time
 
 STATE = os.environ["FAKE_GH_STATE"]
 BARE = os.environ.get("FAKE_GH_BARE", "")
@@ -55,7 +56,7 @@ def git(*args):
 
 def pr_json(state, n):
     p = state["prs"][n]
-    head = git("rev-parse", f"refs/heads/{p['head']}")
+    head = p.get("oid") or git("rev-parse", f"refs/heads/{p['head']}")
     files = git("diff", "--name-only", f"{p['base']}...{head}").split()
     return {"title": p["title"], "body": p["body"], "state": p["state"], "headRefName": p["head"],
             "baseRefName": p["base"], "headRefOid": head, "files": [{"path": f} for f in files],
@@ -87,6 +88,9 @@ def main():
                    for n, i in state["issues"].items()
                    if i["state"] == "OPEN" and (not wanted or set(wanted) & set(i["labels"]))]
             print(json.dumps(out))
+        elif verb in ("view", "comment", "edit", "close") and rest[0] not in state["issues"]:
+            # gh: "GraphQL: Could not resolve to an Issue" (not run against real gh)
+            sys.exit("could not resolve to an Issue with the number of " + rest[0])
         elif verb == "view":
             i = state["issues"][rest[0]]
             print(json.dumps({"title": i["title"], "state": i["state"], "body": i["body"],
@@ -128,11 +132,15 @@ def main():
             wanted = (opt(rest, "--json") or "").split(",")
             print(json.dumps({k: v for k, v in pr_json(state, rest[0]).items() if k in wanted}))
         elif verb == "checks":
-            if "--required" in rest and (state.get("required_errors", 0) > 0
-                                         or time.time() < state.get("required_errors_until", 0)):
-                if state.get("required_errors", 0) > 0:
-                    state["required_errors"] -= 1
-                    save(state)
+            reads = state.setdefault("reads", {"required": 0, "all": 0})
+            reads["required" if "--required" in rest else "all"] += 1
+            save(state)
+            if "checks_stdout" in state:
+                print(state["checks_stdout"])
+                sys.exit(1)
+            if "--required" in rest and state.get("required_errors", 0) > 0:
+                state["required_errors"] -= 1
+                save(state)
                 print("gh: HTTP 502", file=sys.stderr)
                 sys.exit(1)
             if "--required" in rest and not state["required"]:
@@ -154,6 +162,9 @@ def main():
             if pending and state.get("revoke_on_pending"):
                 state["statuses"].setdefault(sha, []).insert(
                     0, {"context": "teamflow/code-review", "state": "failure", "description": "REQUEST_CHANGES"})
+                save(state)
+            if pending and state.get("change_on_pending"):
+                state["prs"][rest[0]].update(state.pop("change_on_pending"))
                 save(state)
             print(json.dumps(checks))
             sys.exit(8 if pending else 0)

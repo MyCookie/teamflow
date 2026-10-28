@@ -725,7 +725,7 @@ def body(a):
 
 
 def check_labels(labels):
-    # A comma splits in gh and fakes a second label in `issue list`; a control character (C0, DEL, C1
+    # A comma may split in gh (from gh's help text; unverified, #171) and fakes a second label in `issue list`; a control character (C0, DEL, C1
     # such as U+0085) fakes a line. isprintable also refuses other non-ASCII spaces and unassigned characters.
     for l in labels:
         if not l or "," in l or not l.isprintable():

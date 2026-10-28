@@ -94,7 +94,10 @@ a. **Hard rules.** Every rule in the project's CLAUDE.md and the workflow
 b. **Does it do what the Issue asks**, criterion by criterion: check each
    acceptance criterion by its stated verification method, and treat a
    criterion the PR claims without evidence you can reproduce as
-   unresolved. And does everything the PR asserts as fact hold? Verify
+   unresolved. An Issue without acceptance criteria (a review finding, or
+   one a human filed) is checked against its stated defect, or its stated
+   outcome, and the PR's Evidence table should name that instead of a
+   criterion. And does everything the PR asserts as fact hold? Verify
    claims in prose the way you would an assertion in code: run the
    command, read the source. A doc that confidently states something
    false is wrong behaviour, because docs are what the next agent executes.
@@ -114,7 +117,8 @@ d. **Commits.** Atomic, Conventional (`<type>(<scope>): ...` with a
    failing before the change. Where you can, confirm it yourself: run the
    new test against the base branch's code in a scratch worktree
    (`git worktree add --detach <path> <base ref>`, where the base ref is
-   `main` locally or `origin/main` on GitHub; copy in the test, run it,
+   `teamflow-config base`, or on GitHub `teamflow-config remote` and
+   `teamflow-config base` joined by a slash; copy in the test, run it,
    then `git worktree remove <path>`); it must fail there. If any step is
    refused, read the base branch's source instead and say the red was
    confirmed by reading, not by running. Missing red/green
@@ -131,8 +135,8 @@ f. **Changes to a checker** (anything that greps, bans, validates or
    for every form the check exists to catch, and negative controls of
    legitimate code that resembles the banned form. False positives live
    there, and a false positive in a gate blocks every future PR. When a fix
-   widens a check, run the old pattern (`git show main:<file>`, or
-   `origin/main` on GitHub) and the new one over the same corpus and read
+   widens a check, run the old pattern (`git show <base ref>:<file>`,
+   the base ref as in item d) and the new one over the same corpus and read
    the difference. At least one control must match the old pattern, or an
    empty delta proves nothing.
 

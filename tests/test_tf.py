@@ -473,9 +473,18 @@ class GitHubFlow(unittest.TestCase):
             self.assertIn("invalid label", self.code(2, "issue", "create", "--title", "t", "--body", "b", "--label", bad))
         self.assertIn("labels: severity:low\n", self.ok("issue", "view", "1"))  # nothing changed
         self.assertEqual(list(self.gh_state()["issues"]), ["1"])  # the bad create made no Issue
-        # an unknown number reaches gh, which fails (exit 1, not tf's usage error)
-        err = self.code(1, "issue", "edit", "99", "--add-label", "x")
-        self.assertIn("could not resolve to an Issue", err)  # fake_gh's answer; real gh's wording not run
+
+    def test_issue_edit_matches_local_mode(self):
+        self.open_pr()  # Issue #1, PR #2
+        # prints the labels read back after the edit, as local mode does
+        out = self.ok("issue", "edit", "1", "--add-label", "a", "--add-label", "b", "--remove-label", "type:feature")
+        self.assertEqual(out.strip(), "#1: labels: a, b")
+        self.assertEqual(self.ok("issue", "edit", "1", "--remove-label", "a", "--remove-label", "b").strip(), "#1: labels: -")
+        # a PR number and a missing number are refused (exit 3) before gh edits anything
+        before = self.gh_state()
+        self.assertIn("#2 is a PR, not an Issue", self.code(3, "issue", "edit", "2", "--add-label", "x"))
+        self.assertIn("#99 does not exist", self.code(3, "issue", "edit", "99", "--add-label", "x"))
+        self.assertEqual(self.gh_state(), before)  # fake_gh's answers; real gh not run (#171)
 
     def test_pr_view_shows_the_merge_state(self):
         self.open_pr()

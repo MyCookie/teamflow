@@ -449,8 +449,19 @@ class GitHub:
         print(self.gh("issue", "comment", str(n), "--body", body))
 
     def issue_edit(self, n, add, remove):
-        print(self.gh("issue", "edit", str(n), *[a for l in add for a in ("--add-label", l)],
-                      *[a for l in remove for a in ("--remove-label", l)]))
+        # Same refusals as local mode. The REST issues endpoint answers for PRs too, marked by "pull_request".
+        try:
+            found = json.loads(self.api(f"repos/{self.slug}/issues/{n}"))
+        except RuntimeError as e:
+            if "HTTP 404" in str(e):
+                raise Refused(f"#{n} does not exist") from None
+            raise
+        if "pull_request" in found:
+            raise Refused(f"#{n} is a PR, not an Issue")
+        self.gh("issue", "edit", str(n), *[a for l in add for a in ("--add-label", l)],
+                *[a for l in remove for a in ("--remove-label", l)])
+        labels = json.loads(self.gh("issue", "view", str(n), "--json", "labels"))["labels"]
+        print(f"#{n}: labels: {', '.join(l['name'] for l in labels) or '-'}")
 
     def issue_close(self, n):
         print(self.gh("issue", "close", str(n)))

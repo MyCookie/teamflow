@@ -241,14 +241,17 @@ Evaluate termination conditions in this order (first match wins):
 4. **Severity threshold**: no open Issues (tracking Issues excluded)
    above exit_severity_threshold remain → Done (Phase 4). Exception: with
    `teamflow_auto_approve` `low`, if the next iteration's Issues are
-   all-low by the label conditions (workflow rules, Handoffs, Auto-approval,
-   *Loop*), go on to rule 5 instead.
+   all-low by the label conditions alone (workflow rules, Handoffs,
+   Auto-approval, *All-low batch*; owned files are known only at planning,
+   where the plan check still runs), go on to rule 5 instead. Rule 3, the
+   open-Issue floor, rule 2 and the high-severity escalation still end or
+   interrupt the loop.
 5. **Issue count floor**: open Issues (tracking Issues excluded) <=
    max_open_issues_to_continue
    → Done (Phase 4).
 6. **Human question**: if iteration > 0: if `teamflow_auto_approve` is `low`
    and the next iteration's Issues are all-low (same exception as rule 4),
-   send the human the figures below as a notice and continue. Otherwise
+   do not ask: send the human the figures below as a notice and continue. Otherwise
    present the human with: iteration count, new Issues filed this cycle,
    open Issue total. Ask: continue loop? The human may also change bounds at
    this point — update .manager-state.json — and may decide Issues, which

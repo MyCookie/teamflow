@@ -65,18 +65,11 @@ author's say-so.**
       the human the plan was auto-approved and why, and sends "Plan
       approved. Begin spawning." without waiting. If a check fails, or an
       Issue cannot be read, the plan waits for the human as under `none`.
-    - *Loop.* The next iteration's Issues are the cycle's new Issues: the
-      manager names them to impl-lead, which plans exactly those. When they
-      are all-low by the label conditions alone (owned files are known only
-      at planning, where the plan check still runs), the manager does not
-      stop on the severity threshold and does not ask the per-cycle question;
-      it sends the human a notice instead. Zero new Issues, a cycle that
-      files more new Issues than it closed, the open-Issue floor and the
-      high-severity escalation still end or interrupt the loop.
-    - *Pause.* An iteration that ends with any PR escalated or unmerged
-      stops the loop from starting the next iteration, auto-approved or not,
-      all-low or not: the manager relays the escalation and waits for the
-      human to resolve it.
+    - *Loop and pause.* The loop rules are stated once, in the manager's
+      loop check (`agents/manager.md`): which all-low next iterations skip the
+      severity-threshold stop and the human question, and what still ends or
+      pauses the loop. The all-low test is the label conditions of *All-low
+      batch* above, on the cycle's new Issues.
     - *Release.* For an auto-approved iteration the release line is
       validated as usual and the release recorded, but the update question
       moves from before the review to the end of the run, asked once. Agents
@@ -145,7 +138,9 @@ author's say-so.**
   of the new Issues, highest severity, tracking Issue number, and whether
   prior-cycle Issues remain unfixed. Manager runs the loop check; if
   continuing, sends @impl-lead the new Issue numbers (the next iteration
-  plans exactly those); if stopping, reports to the human.
+  plans exactly those); if stopping, reports to the human. Under
+  `teamflow_auto_approve` `low` the loop check has exceptions (see
+  Auto-approval).
 - **Review → Done.** Zero new Issues, or the loop check ends the loop: the manager reports
   final state to the human.
 

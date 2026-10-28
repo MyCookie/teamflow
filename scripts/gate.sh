@@ -70,13 +70,26 @@ step "unit tests" python3 -m unittest discover -s tests
 # Agents copy these command shapes, so bodies must reach tf as a quoted
 # heredoc on stdin (#9): double quotes run backtick spans as commands, and in
 # single quotes an apostrophe in prose ends the string and does the same.
-# Flags an inline --body in any form, a double-quoted --title, and a heredoc
-# whose delimiter is not quoted.
+# An inline --body in any form and a double-quoted --title are flagged on
+# command lines only: a line naming a subcommand that takes a body (issue
+# create|comment, pr create|review, however tf is spelled) or starting with a
+# flag (a wrapped command). Prose such as "the --body flag" has neither, so it
+# passes (#14). A heredoc whose delimiter is not quoted is flagged on every
+# line, since it expands backticks and $ wherever it writes: <<WORD, or
+# << WORD with an uppercase delimiter, so "std::cout << x" passes.
+# shortcut: a body or title on a wrapped line that neither names a subcommand
+# nor starts with a flag is missed, and so is a heredoc with a space and a
+# lowercase delimiter; upgrade if the docs start doing either.
 quoting_is_safe() {
-    ! grep -rnE -- '--body([[:space:]=]|$)|--title(=|[[:space:]]+)"|<<-?[[:space:]]*[A-Za-z_]' \
-        agents skills README.md
+    local command='(issue|pr)[[:space:]]+(create|comment|review)|^[[:space:]]*--'
+    local unsafe='--body([[:space:]=]|$)|--title(=|[[:space:]]+)"'
+    local heredoc='<<-?([A-Za-z_]|[[:space:]]+[A-Z_])'
+    local bad=0
+    grep -rnE -- "$command" "$@" | grep -E -- "$unsafe" && bad=1
+    grep -rnE -- "$heredoc" "$@" && bad=1
+    return "$bad"
 }
-step "agent docs pass bodies safely" quoting_is_safe
+step "agent docs pass bodies safely" quoting_is_safe agents skills README.md
 
 # Plugin validation needs the claude CLI (no login). CI installs it, so in CI
 # a missing claude fails the gate rather than skipping a required check.

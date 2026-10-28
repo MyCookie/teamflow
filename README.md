@@ -43,10 +43,11 @@ tf setup                      # dry run; add --forge github for GitHub mode
 tf setup --apply
 ```
 
-Then add the project's lint and test steps to `scripts/gate.sh`, commit,
-and merge the branch the way you merge today. teamflow's own review flow
-starts once this is on the base branch. The `teamflow:setup` skill walks
-through it and lists the checks that the team works.
+Then add the project's lint and test steps to `scripts/gate.sh` (in GitHub
+mode also the toolchain to `.github/workflows/gate.yml`), commit, and merge
+the branch the way you merge today. teamflow's own review flow starts once
+this is on the base branch. The `teamflow:setup` skill walks through it and
+lists the checks that the team works.
 
 **Auto mode.** A manager session reported on 2026-10-27 (Claude Code
 version not recorded; not re-run here) that auto mode refused `tf issue
@@ -96,9 +97,9 @@ in the manager's loop check (`agents/manager.md`); these loop rules have not
 been run live.
 
 `tf` and `teamflow-config` read the file from the main worktree, which must
-stay on the base branch (`tf` stops otherwise), so a PR under review can't
-change the rules its own review runs under. Work on other branches in
-separate worktrees.
+stay on the base branch (`tf` stops otherwise; `tf setup` is the exception,
+it runs on a setup branch), so a PR under review can't change the rules its
+own review runs under. Work on other branches in separate worktrees.
 
 ## Local or GitHub
 
@@ -124,6 +125,10 @@ requires the CI gate, so `tf setup` creates it only once
 merges, run `tf setup --forge github --apply` once more from the main
 worktree. Rulesets need a public repository or a paid plan; without them
 `tf setup` says so and GitHub mode runs unenforced.
+
+On GitHub, `tf pr gate` and `tf pr merge` can wait for CI, bounded by
+`TF_GATE_WAIT` and polled every `TF_GATE_POLL`; if your CI takes long, see
+`tf --help` for both settings and how long the wait can run.
 
 `tf mode` then prints `github`. If `gh` is missing, logged out, or the
 remote isn't GitHub, every `tf` command stops with exit 2 rather than

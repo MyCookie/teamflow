@@ -202,8 +202,9 @@ never `gh` directly. The repository's `.claude/teamflow.json` sets `forge`;
 `tf mode` prints it. Configuration is always read from the main worktree,
 never from the worktree `tf` runs in, so a PR that changes it takes effect
 only once merged and pulled. The main worktree must stay on the base branch;
-on any other branch every `tf` command stops (exit 2). All work on other
-branches happens in separate worktrees.
+on any other branch every `tf` command stops (exit 2), except `tf setup`,
+which runs on a setup branch. All work on other branches happens in separate
+worktrees.
 
 | | `local` (default) | `github` (adopted) |
 |---|---|---|
@@ -224,10 +225,15 @@ from forks cannot be reviewed.
 Exit codes: 0 ok, 1 error, 2 setup or usage problem, 3 refused because of PR
 state (claimed, moved head, no approval, or after the wait of `tf pr gate` or
 `tf pr merge`, CI still running or unreadable). Exit 3 is a STOP, not a retry
-signal. `tf pr gate` exits 1 for a red gate in both modes (locally, any nonzero
-result of `scripts/gate.sh`, so also a gate that could not run: read its output). On GitHub it reports a red check as soon as every
-check has finished, but a missing `gate` check (exit 2), unreadable CI and
-pending checks (exit 3) only after the full `TF_GATE_WAIT`.
+signal. `tf pr gate` exits 1 for a red gate in both modes (locally, any
+nonzero result of `scripts/gate.sh`, so also a gate that could not run: read
+its output). On GitHub it reports a red check as soon as every check has
+finished, but a missing `gate` check (exit 2), unreadable CI and pending
+checks (exit 3) only after the full `TF_GATE_WAIT`. `tf pr merge` on GitHub
+uses the same codes: without a ruleset, exit 1 is a red `gate` check or a
+failed merge, exit 2 a missing `gate` check or a bad `TF_GATE_WAIT` or
+`TF_GATE_POLL` (also on a ruleset repository); locally, exit 1 is a failed
+merge that is not a conflict. `tf --help` has the timing of the wait.
 
 ## Domain language
 When the project has `CONTEXT.md` (its glossary) or `docs/adr/` (its
@@ -402,7 +408,8 @@ evidence.
   `merge state:`.
 - **Rework:** on `REQUEST_CHANGES` the implementer fixes every `blocker` and
   `major` on the same branch, re-runs the gate, and on GitHub pushes the
-  fix; a new reviewer re-reviews everything. A suggested fix is an argument, not a tested patch.
+  fix; a new reviewer re-reviews everything. A suggested fix is an argument,
+  not a tested patch.
 - **Escalate to the human** when a finding is re-argued without new
   evidence, when the dispute is about what the Issue requires, or at five
   rounds. Leave the PR open.

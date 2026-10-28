@@ -788,5 +788,15 @@ class GitHubFlow(unittest.TestCase):
         self.assertIn("not authenticated", result.stderr)
 
 
+class Usage(unittest.TestCase):
+    def test_every_command_that_takes_a_body_file_says_it_may_be_stdin(self):
+        out = sh(TF, "--help", cwd=tempfile.gettempdir()).stdout
+        for command in ("issue create", "issue comment", "pr create", "pr review"):
+            with self.subTest(command=command):
+                line = next(l for l in out.splitlines() if l.strip().startswith(f"tf {command} "))
+                self.assertIn("--body-file", line)
+                self.assertIn("stdin", line)
+
+
 if __name__ == "__main__":
     unittest.main()

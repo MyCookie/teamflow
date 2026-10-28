@@ -2,22 +2,22 @@
 """teamflow's one interface to Issues and PRs, local or on GitHub.
 
     tf mode
-    tf setup [--forge local|github] [--remote R] [--apply]   # dry run without --apply
+    tf setup [--forge local|github] [--remote R] [--apply]   # dry run without --apply; R defaults to the configured remote
     tf issue create --title T (--body B | --body-file F) [--label L ...]   # F may be - for stdin
     tf issue list [--label L ...]                # open Issues carrying any label
     tf issue view N
-    tf issue comment N (--body B | --body-file F)
+    tf issue comment N (--body B | --body-file F)   # F may be - for stdin
     tf issue edit N [--add-label L ...] [--remove-label L ...]   # at least one flag
     # a label is non-empty, printable, with no comma, on create and edit (else exit 2)
     tf issue close N
-    tf pr create --title T (--body B | --body-file F) [--base B]
+    tf pr create --title T (--body B | --body-file F) [--base B]   # F may be - for stdin
     tf pr list
     tf pr view N
     tf pr checkout N                             # code-reviewer worktree only
     tf pr claim N | tf pr release N
     tf pr gate N
     tf pr diff N [PATH ...]                      # base...head, after tf pr checkout
-    tf pr review N --verdict APPROVE|REQUEST_CHANGES --sha SHA (--body B | --body-file F)
+    tf pr review N --verdict APPROVE|REQUEST_CHANGES --sha SHA (--body B | --body-file F)   # F may be - for stdin
     tf pr merge N
 
 The mode comes from `forge` in .claude/teamflow.json (see teamflow-config):
@@ -646,13 +646,21 @@ def setup(forge_name, remote, apply):
     prepared on a branch and merged through a PR like any other change.
     """
     root = Path(git("rev-parse", "--show-toplevel"))
-    hub = GitHub({"remote": remote}) if forge_name == "github" else None  # check gh and remote before writing
 
     def load_json(path):
+        shown = path.relative_to(root) if path.is_relative_to(root) else path
         try:
-            return json.loads(read_file(path))
+            data = json.loads(read_file(path))
         except ValueError as error:
-            raise SetupError(f"{path.relative_to(root)} is not valid JSON ({error})") from None
+            raise SetupError(f"{shown} is not valid JSON ({error})") from None
+        if not isinstance(data, dict):
+            raise SetupError(f"{shown} is not a JSON object")
+        return data
+
+    config = root / ".claude" / "teamflow.json"
+    configured = load_json(config) if config.is_file() else {}
+    remote = remote or configured.get("remote", "origin")  # an explicit --remote wins over the file
+    hub = GitHub({"remote": remote}) if forge_name == "github" else None  # check gh and remote before writing
 
     def do(message, action):
         print(f"{'' if apply else 'would '}{message}")
@@ -695,10 +703,9 @@ def setup(forge_name, remote, apply):
     else:
         print("ok: .gitignore covers teamflow's runtime files")
 
-    config = root / ".claude" / "teamflow.json"
     wanted = {"forge": forge_name, **({"remote": remote} if forge_name == "github" else {})}
     if config.is_file():
-        existing = load_json(config).get("forge", "local")
+        existing = configured.get("forge", "local")
         print(f"ok: .claude/teamflow.json exists" + ("" if existing == forge_name else
               f"; note: it says forge {existing}, not {forge_name}, left alone"))
     else:
@@ -789,7 +796,7 @@ def main():
     sub.add_parser("mode")
     s = sub.add_parser("setup")
     s.add_argument("--forge", choices=["local", "github"], default="local")
-    s.add_argument("--remote", default="origin")
+    s.add_argument("--remote")  # default: the remote in .claude/teamflow.json, else origin
     s.add_argument("--apply", action="store_true")
 
     issue = sub.add_parser("issue").add_subparsers(dest="verb", required=True)

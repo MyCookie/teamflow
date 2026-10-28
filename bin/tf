@@ -723,9 +723,18 @@ def body(a):
     return sys.stdin.read() if a.body_file == "-" else read_file(a.body_file)
 
 
+def check_labels(labels):
+    # A comma splits in gh and fakes a second label in `issue list`; a control character fakes a line.
+    for l in labels:
+        if not l or "," in l or any(c < " " or c == "\x7f" for c in l):
+            raise SetupError(f"invalid label {l!r}: it must be non-empty, with no comma or control character")
+    return labels
+
+
 def edit_labels(a):
     if not (a.add_label or a.remove_label):
         raise SetupError("issue edit needs --add-label or --remove-label")
+    check_labels(a.add_label + a.remove_label)
     both = set(a.add_label) & set(a.remove_label)
     if both:
         raise SetupError(f"label on both --add-label and --remove-label: {', '.join(sorted(both))}")
@@ -787,7 +796,7 @@ def main():
         if a.noun == "mode":
             print("github" if isinstance(f, GitHub) else "local")
         elif a.noun == "issue":
-            {"create": lambda: f.issue_create(a.title, body(a), a.label),
+            {"create": lambda: f.issue_create(a.title, body(a), check_labels(a.label)),
              "list": lambda: f.issue_list(a.label),
              "view": lambda: f.issue_view(a.n),
              "comment": lambda: f.issue_comment(a.n, body(a)),

@@ -87,6 +87,9 @@ def main():
                    for n, i in state["issues"].items()
                    if i["state"] == "OPEN" and (not wanted or set(wanted) & set(i["labels"]))]
             print(json.dumps(out))
+        elif verb in ("view", "comment", "edit", "close") and rest[0] not in state["issues"]:
+            # gh: "GraphQL: Could not resolve to an Issue" (not run against real gh)
+            sys.exit("could not resolve to an Issue with the number of " + rest[0])
         elif verb == "view":
             i = state["issues"][rest[0]]
             print(json.dumps({"title": i["title"], "state": i["state"], "body": i["body"],

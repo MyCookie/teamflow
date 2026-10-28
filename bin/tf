@@ -8,6 +8,7 @@
     tf issue view N
     tf issue comment N (--body B | --body-file F)
     tf issue edit N [--add-label L ...] [--remove-label L ...]   # at least one flag
+    # a label is non-empty, printable, with no comma, on create and edit (else exit 2)
     tf issue close N
     tf pr create --title T (--body B | --body-file F) [--base B]
     tf pr list
@@ -748,9 +749,10 @@ def body(a):
 
 
 def check_labels(labels):
-    # A comma splits in gh and fakes a second label in `issue list`; a control character fakes a line.
+    # A comma may split in gh (from gh's help text; unverified, #171) and fakes a second label in `issue list`; a control character (C0, DEL, C1
+    # such as U+0085) fakes a line. isprintable also refuses other non-ASCII spaces and unassigned characters.
     for l in labels:
-        if not l or "," in l or any(c < " " or c == "\x7f" for c in l):
+        if not l or "," in l or not l.isprintable():
             raise SetupError(f"invalid label {l!r}: it must be non-empty, with no comma or control character")
     return labels
 

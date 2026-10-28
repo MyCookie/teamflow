@@ -103,7 +103,7 @@ class LocalFlow(unittest.TestCase):
         self.assertIn("issue edit needs --add-label or --remove-label", self.refused("issue", "edit", "1", code=2))
         self.assertIn("label on both --add-label and --remove-label: y",
                       self.refused("issue", "edit", "1", "--add-label", "y", "--remove-label", "y", code=2))
-        for bad in ("", "a,b", "a\nb", "a\x1bb"):  # empty, comma, control characters
+        for bad in ("", "a,b", "a\nb", "a\x1bb", "a\x85b"):  # empty, comma, control characters (C0 and C1)
             for flag in ("--add-label", "--remove-label"):
                 self.assertIn("invalid label", self.refused("issue", "edit", "1", flag, bad, code=2))
             self.assertIn("invalid label", self.refused("issue", "create", "--title", "t", "--body", "b",
@@ -467,12 +467,12 @@ class GitHubFlow(unittest.TestCase):
         self.assertIn("issue edit needs --add-label or --remove-label", self.code(2, "issue", "edit", "1"))
         self.assertIn("label on both --add-label and --remove-label: y",
                       self.code(2, "issue", "edit", "1", "--add-label", "y", "--remove-label", "y"))
-        for bad in ("", "a,b", "a\nb", "a\x1bb"):  # empty, comma, control characters
+        for bad in ("", "a,b", "a\nb", "a\x1bb", "a\x85b"):  # empty, comma, control characters (C0 and C1)
             for flag in ("--add-label", "--remove-label"):
                 self.assertIn("invalid label", self.code(2, "issue", "edit", "1", flag, bad))
             self.assertIn("invalid label", self.code(2, "issue", "create", "--title", "t", "--body", "b", "--label", bad))
         self.assertIn("labels: severity:low\n", self.ok("issue", "view", "1"))  # nothing changed
-        self.assertEqual(list(self.gh_state()["issues"]), ["1"])  # create called no gh
+        self.assertEqual(list(self.gh_state()["issues"]), ["1"])  # the bad create made no Issue
         # an unknown number reaches gh, which fails (exit 1, not tf's usage error)
         err = self.code(1, "issue", "edit", "99", "--add-label", "x")
         self.assertIn("could not resolve to an Issue", err)  # fake_gh's answer; real gh's wording not run

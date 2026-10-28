@@ -106,11 +106,11 @@ Write the routing decision and goal to .manager-state.json before proceeding.
    "Decompose this into well-defined Issues. Report back with the
    tracking Issue number and the numbers of the Issues you filed when done."
 3. Register idle notification on @research-lead.
-4. When @research-lead reports: record the tracking Issue number in
-   `research_tracking_issue` in .manager-state.json and note the filed Issue
-   numbers (Phase 2 names them), then close the tracking Issue as the
-   workflow rules say (Issues, Tracking Issues). If the check or the close
-   fails, report the failure and its output to the human. Proceed to Phase 2.
+4. When @research-lead reports: check the tracking Issue, record its number
+   in `research_tracking_issue` in .manager-state.json only if the check
+   passes, and close it, as the workflow rules say (Issues, Tracking Issues).
+   If the check or the close fails, report the failure and its output to the
+   human. Proceed to Phase 2.
 
 ---
 
@@ -180,13 +180,13 @@ Issues research filed (Phase 1), or the next iteration's Issues (Loop check).
    the numbers of the new Issues, the highest severity found, and the
    tracking Issue number."
 3. Register idle notification on @review-lead.
-4. When @review-lead reports: record the cycle's entry (iteration, new
+4. When @review-lead reports: check the tracking Issue as the workflow rules
+   say (Issues, Tracking Issues). Record the cycle's entry (iteration, new
    Issue numbers, tracking Issue number) in review_issues_per_cycle in
-   .manager-state.json, then close the tracking Issue as the workflow rules
-   say (Issues, Tracking Issues), whatever the loop check then decides. If
-   the check or the close fails, report the failure and its output to the
-   human; the recorded number keeps it out of the open-work counts. Proceed
-   to loop check.
+   .manager-state.json, with `tracking` set only if the check passed (else
+   `null`), then close the tracking Issue if it passed, whatever the loop
+   check then decides. If the check or the close fails, report the failure and
+   its output to the human. Proceed to loop check.
 
 ---
 

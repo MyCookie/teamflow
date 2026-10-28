@@ -275,13 +275,14 @@ label change to their lead instead.
   it filed (review-lead: the net new ones), never a URL: `tf issue create`
   prints a URL on GitHub and `#N` locally, and the number is its trailing
   digits. The lead does not close it.
-- The manager records the number in `.manager-state.json`, runs
-  `tf issue view <n>`, and runs `tf issue close <n>` only if that Issue has
-  none of the three labels. Otherwise it reports to the human and closes
-  nothing: a wrong number would close real work.
+- The manager runs `tf issue view <n>` first. Only if that Issue has none of
+  the three labels does it record the number in `.manager-state.json` and run
+  `tf issue close <n>`. Otherwise it records nothing, closes nothing and
+  reports to the human: a wrong number would close real work, and recording
+  it would drop a work Issue from the open-work counts.
 - The numbers recorded in `.manager-state.json` identify tracking Issues:
   counts of open or filed work leave them out. On Startup the manager closes
-  any recorded one still open, the same way.
+  any recorded one still open, checking its labels again first.
 
 **Research Issues are typed briefs**, so implementation and review can
 check each claim:

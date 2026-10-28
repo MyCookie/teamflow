@@ -90,23 +90,14 @@ conditions. `none` turns it off. This flow has not been run live.
 
 **Migrating:** `loop.max_iterations` and `loop.human_checkpoint` are removed.
 A `.claude/teamflow.json` that still sets either makes `teamflow-config`, and
-so every `tf` command except `tf setup` (which does not read the config), exit 2
-with `unknown key '...'` (the test covers `teamflow-config` directly); delete
-the key. In their place the loop ends when a cycle files more new Issues than
-its merged PRs closed (equal counts continue), and the manager still asks the
-human after every cycle, except under the all-low auto-approval notice.
-
-**No iteration cap remains.** A human decision (Issue #187) accepted this: an
-auto-approved run whose cycles keep filing exactly as many all-low Issues as
-they close continues without asking the human, and there is no periodic
-question. Such a loop still ends when a cycle files zero new Issues, files
-more new Issues than it closed, or leaves open Issues at or below
-`max_open_issues_to_continue` (default 0, so only an empty backlog). It pauses
-for the human when an iteration ends with an escalated or unmerged PR, and
-the high-severity escalation (more high-severity Issues than resolved) still
-reaches the human. The only other limit read is the manager's `maxTurns: 200`
-in `agents/manager.md`, which is not a documented loop bound. These loop rules
-have not been run live.
+so every `tf` command that reads the config, exit 2 with `unknown key '...'`
+(the test covers `teamflow-config` directly); delete the key. `tf setup` is the
+exception: it does not call `teamflow-config`, reading only `forge` from the
+file, so it does not exit 2 on a removed key (it does exit 2 on invalid JSON).
+No iteration cap remains (Issue #187): an auto-approved run whose cycles keep
+filing exactly as many all-low Issues as they close continues without asking
+the human. The manager's loop check in `agents/manager.md` lists when a loop
+still ends or pauses. These loop rules have not been run live.
 
 `tf` and `teamflow-config` read the file from the main worktree, which must stay on the base branch (`tf` stops otherwise), so a
 PR under review can't change the rules its own review runs under. Work on

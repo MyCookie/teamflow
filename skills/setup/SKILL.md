@@ -22,7 +22,7 @@ cd ../<repo>-setup
 
 ```bash
 tf setup                      # local mode: no forge needed
-tf setup --forge github       # GitHub mode, against the `origin` remote
+tf setup --forge github       # GitHub mode; remote: --remote, else teamflow.json, else origin
 ```
 
 Without `--apply` it is a dry run: it prints `would ...` for each change

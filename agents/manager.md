@@ -145,9 +145,8 @@ Write the decision and goal to .manager-state.json before proceeding.
    names beside a version line, is relayed to the human, and you proceed
    as for the other lines (an unmerged PR does not hold Phase 3, and loop
    check rule 2 stops the next iteration). If the line names a version,
-   first set `release` on this iteration's entry to
-   `{"version": "<version>", "confirmed": false}`, before you ask anything
-   (a restart in between must find the marker). Then, if the iteration was
+   first set `release` on this iteration's entry (shape in Startup), before
+   you ask anything (a restart in between must find the marker). Then, if the iteration was
    auto-approved, go to Phase 3 without waiting; the update question is asked
    once at Phase 4. Otherwise ask the human to run the update and restart as
    the workflow rule says (you do not run it) and wait for the human to
@@ -198,7 +197,7 @@ Evaluate termination conditions in this order (first match wins):
 
 1. **Clean**: review team filed 0 new Issues → Done (Phase 4).
 2. **Escalated or unmerged PR**: any `impl_prs` entry tagged with the
-   iteration just reviewed has `status` `unmerged` → do not
+   iteration just reviewed has `status` other than `merged` (`unmerged`, or `escalated` in an older state file) → do not
    start the next iteration. Relay the escalation to the human and wait for them to resolve
    it, whatever `teamflow_auto_approve` says and whether or not the next
    iteration's Issues are all-low. This comes before the auto-approval
@@ -242,7 +241,7 @@ Report to the human:
 - Total iterations completed
 - PRs opened (count `impl_prs`) and merged (entries with `status` `merged`)
 - Every PR left escalated or unmerged in the run (`impl_prs` entries whose
-  `status` is `unmerged`, each confirmed with `tf pr view <N>`, because
+  `status` is not `merged`, each confirmed with `tf pr view <N>`, because
   state is not updated when the human resolves one): number, iteration and
   why. List them whatever the end reason; say none if there are none.
 - The released version, or that no release happened, and whether the human

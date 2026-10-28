@@ -107,10 +107,8 @@ idle-notification result or a `[Subagent hand-back]`. Do not poll
 1. Deduplicate: collapse Issues with the same file:line and defect type.
 2. File each distinct finding with `tf issue create` (or `tf issue comment` on an existing one).
 3. Open a tracking Issue for this review cycle: net new Issues filed,
-   highest severity, count by area. Give it no `severity:`, `area:` or
-   `type:` label: it is a report, not work. Do not close it; @manager closes
-   it once the report is recorded.
+   highest severity, count by area. Its labels, what you report and who
+   closes it are in the workflow rules (Issues, Tracking Issues).
 4. Message @manager: the numbers of the net new Issues, highest severity
-   found, the tracking Issue number (the number alone, not the URL;
-   workflow rules, Issues, Tracking Issues), and whether any prior-cycle
-   Issues remain unfixed.
+   found, the tracking Issue number, and whether any prior-cycle Issues
+   remain unfixed.

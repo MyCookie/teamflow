@@ -632,7 +632,7 @@ class GitHubFlow(unittest.TestCase):
     def test_unenforced_merge_treats_an_unreadable_gate_check_as_a_stop(self):
         head = self.open_pr()
         self.ok("pr", "review", "2", "--verdict", "APPROVE", "--sha", head, "--body", "ok", cwd=self.rev)
-        self.set_checks(head, "pass")  # no ruleset: the required-checks read reports none and the gate check is read
+        self.set_checks(head, "pass")  # no ruleset: only the gate check is read
         self.set_check_seq(head, ["error"])
         result = self.tf("pr", "merge", "2", cwd=self.rev, env={"TF_GATE_WAIT": "0.1", "TF_GATE_POLL": "0.01"})
         self.assertEqual(result.returncode, 3, result.stdout + result.stderr)
@@ -640,20 +640,18 @@ class GitHubFlow(unittest.TestCase):
         self.assertEqual(self.gh_state()["merges"], [])
         self.assertEqual(self.gh_state()["prs"]["2"]["state"], "OPEN")
 
-    def test_merge_without_a_ruleset_has_one_deadline_for_every_wait(self):
+    def test_merge_without_a_ruleset_has_one_deadline_and_never_reads_the_required_checks(self):
         head = self.open_pr()
         self.ok("pr", "review", "2", "--verdict", "APPROVE", "--sha", head, "--body", "ok", cwd=self.rev)
-        self.set_checks(head, "pending")  # no required checks, and the `gate` check never finishes
-        wait, poll, errors = 3, 0.2, 7
-        state = self.gh_state()  # the required-checks read fails for 7 polls, then reports none
-        state["required_errors"] = errors
-        self.state.write_text(json.dumps(state))
+        self.set_checks(head, "pending")  # no ruleset, and the `gate` check never finishes
+        self.set_check_seq(head, ["error"] * 7 + ["pending"])  # 7 failed reads: a second wait would show
+        wait, poll = 3, 0.2
         result = self.tf("pr", "merge", "2", cwd=self.rev, env={"TF_GATE_WAIT": str(wait), "TF_GATE_POLL": str(poll)})
         self.assertEqual(result.returncode, 3, result.stdout + result.stderr)
         self.assertIn("still running: gate", result.stderr)
-        # One deadline allows at most wait/poll + 1 polls in all, and `errors` of them were spent failing.
-        # A second deadline after the required checks recover would add up to wait/poll more `gate` reads.
-        self.assertLessEqual(self.gh_state()["reads"]["all"], wait / poll + 1 - errors)
+        reads = self.gh_state()["reads"]
+        self.assertEqual(reads["required"], 0)  # tf's own path judges `gate`; the required list is not its business
+        self.assertLessEqual(reads["all"], wait / poll + 1)  # one deadline
         self.assertEqual(self.gh_state()["merges"], [])
 
     def merge_while_the_pr_changes(self, change):
@@ -787,6 +785,44 @@ class GitHubFlow(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 self.assertEqual(self.gh_state()["reads"], {"required": 1, "all": 0})  # one read, no waiting
                 self.assertTrue(self.gh_state()["merges"][-1]["auto"])
+
+    def approved_head_with_foreign_protection(self, gate_bucket):
+        """An approved head whose only ruleset requirement is `build`: no `gate`, no `teamflow/code-review`."""
+        head = self.open_pr()
+        state = self.gh_state()
+        state["checks"][head] = [{"name": "build", "bucket": "pass"}, {"name": "gate", "bucket": gate_bucket}]
+        state.update(required=True, required_names=["build"], rule_contexts=["build"])
+        self.state.write_text(json.dumps(state))
+        self.ok("pr", "review", "2", "--verdict", "APPROVE", "--sha", head, "--body", "ok", cwd=self.rev)
+        self.assertEqual(self.gh_state()["merges"], [])  # the review armed nothing
+        return head
+
+    def test_merge_does_not_trust_a_ruleset_that_lacks_the_gate_and_review_contexts(self):
+        self.approved_head_with_foreign_protection("fail")  # `build` is green, `gate` is red
+        result = self.tf("pr", "merge", "2", cwd=self.rev)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("gate: fail", result.stdout)
+        self.assertEqual(self.gh_state()["merges"], [])  # no --auto, no merge
+        self.assertEqual(self.gh_state()["prs"]["2"]["state"], "OPEN")
+
+    def test_merge_uses_its_own_path_when_the_ruleset_lacks_the_gate_and_review_contexts(self):
+        self.approved_head_with_foreign_protection("pass")
+        self.ok("pr", "merge", "2", cwd=self.rev)
+        self.assertEqual([m["auto"] for m in self.gh_state()["merges"]], [False])
+        self.assertEqual(self.gh_state()["prs"]["2"]["state"], "MERGED")
+
+    def test_merge_does_not_arm_auto_merge_on_an_unreadable_ruleset(self):
+        head = self.open_pr()
+        self.set_checks(head, "pass", required=True)
+        self.ok("pr", "review", "2", "--verdict", "APPROVE", "--sha", head, "--body", "ok", cwd=self.rev)
+        state = self.gh_state()
+        state.update(merges=[], rules_error=True)
+        self.state.write_text(json.dumps(state))
+        result = self.tf("pr", "merge", "2", cwd=self.rev)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("could not read the ruleset", result.stdout)
+        self.assertEqual([m["auto"] for m in self.gh_state()["merges"]], [False])
+        self.assertEqual(self.gh_state()["prs"]["2"]["state"], "MERGED")
 
     def review(self, head, verdict="APPROVE", body="ok"):
         return self.tf("pr", "review", "2", "--verdict", verdict, "--sha", head, "--body", body, cwd=self.rev)

@@ -212,7 +212,7 @@ worktrees.
 | One reviewer per PR | `tf pr claim`: a lock | `tf pr claim`: a pending `teamflow/code-review` status on the head |
 | Gate at review | The reviewer runs `scripts/gate.sh` (`tf pr gate`) | CI's required checks on the head (`tf pr gate`); no second local run |
 | Verdict | Recorded against the reviewed head SHA | A PR comment plus a `teamflow/code-review` status on that SHA |
-| Merge | `tf pr merge` merges into the base branch; nothing is pushed | With a ruleset, `tf pr review --verdict APPROVE` enables auto-merge, pinned to the reviewed head, and GitHub merges once required checks pass (at once if the PR is already clean); `tf pr merge` is only the fallback. Without one, `tf pr review` arms nothing, and `tf pr merge` checks the CI `gate` check and the verdict itself, then merges, waiting for pending CI like `tf pr gate`. Every GitHub `tf pr merge` can block up to `TF_GATE_WAIT`, so it needs the long Bash timeout |
+| Merge | `tf pr merge` merges into the base branch; nothing is pushed | With a ruleset requiring both `gate` and `teamflow/code-review`, `tf pr review --verdict APPROVE` enables auto-merge, pinned to the reviewed head, and GitHub merges once required checks pass (at once if the PR is already clean); `tf pr merge` is only the fallback. Without one (no ruleset, one lacking either context, or one `tf` cannot read), `tf pr review` arms nothing, and `tf pr merge` checks the CI `gate` check and the verdict itself, then merges, waiting for pending CI like `tf pr gate`. Every GitHub `tf pr merge` can block up to `TF_GATE_WAIT`, so it needs the long Bash timeout |
 | Stacked PR after its dependency merges | `tf` retargets it to the base branch | GitHub retargets it, because adoption deletes merged branches (`delete_branch_on_merge`); without that it stays on the old base |
 
 A repository that adopted `github` but lacks `gh`, its login, or a GitHub
@@ -232,10 +232,10 @@ nonzero result of `scripts/gate.sh`, so also a gate that could not run: read
 its output). On GitHub it reports a red check as soon as every check has
 finished, but a missing `gate` check (exit 2), unreadable CI and pending
 checks (exit 3) only after the full `TF_GATE_WAIT`. `tf pr merge` on GitHub
-uses the same codes: without a ruleset, exit 1 is a red `gate` check or a
-failed merge, exit 2 a missing `gate` check or a bad `TF_GATE_WAIT` or
-`TF_GATE_POLL` (also on a ruleset repository); locally, exit 1 is a failed
-merge that is not a conflict. `tf --help` has the timing of the wait.
+uses the same codes: without a ruleset requiring both contexts, exit 1 is a
+red `gate` check or a failed merge, exit 2 a missing `gate` check or a bad
+`TF_GATE_WAIT` or `TF_GATE_POLL` (also with such a ruleset); locally, exit 1 is
+a failed merge that is not a conflict. `tf --help` has the timing of the wait.
 
 ## Domain language
 When the project has `CONTEXT.md` (its glossary) or `docs/adr/` (its

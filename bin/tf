@@ -31,6 +31,15 @@ The mode comes from `forge` in .claude/teamflow.json (see teamflow-config):
   gate run. Where a ruleset makes checks required, GitHub enforces them and
   merges once they pass. Without one, tf checks the CI `gate` check and the
   verdict itself before merging, which is a process control only.
+  `tf pr review --verdict APPROVE` arms auto-merge (`gh pr merge --auto`,
+  pinned to the reviewed head) when the PR targets the configured base and
+  `repos/<slug>/rules/branches/<base>` lists a required status check for both
+  `gate` and `teamflow/code-review`; GitHub then merges once they pass, or at
+  once if the PR is already clean. It prints what it did and arms nothing for
+  REQUEST_CHANGES, a stacked PR, or a repository without that ruleset (there,
+  and in local mode, the reviewer runs `tf pr merge`). If the verdict is
+  recorded but arming fails, including an unreadable ruleset, review exits 4
+  and the verdict stays; `tf pr merge N` is then the fallback.
   If the repository adopted github but gh is missing, unauthenticated, or the
   remote is not GitHub, every command stops (exit 2): never a silent fallback.
 
@@ -49,7 +58,8 @@ TF_GATE_POLL a finite number > 0, else exit 2 (also for `tf pr merge`).
 
 Exit codes: 0 ok, 1 error, 2 setup or usage problem, 3 refused because of PR
 state (claimed, moved head, no approval, or after the wait of tf pr gate or
-tf pr merge, CI still running or unreadable). Exit 3 is a STOP, not a retry signal.
+tf pr merge, CI still running or unreadable), 4 the verdict of tf pr review is
+recorded but auto-merge was not armed. Exit 3 is a STOP, not a retry signal.
 """
 
 import argparse
@@ -77,6 +87,10 @@ class Refused(Exception):
 
 class SetupError(Exception):
     """The repository or tooling is not set up for this command (exit 2)."""
+
+
+class ArmFailed(Exception):
+    """The verdict is recorded but auto-merge could not be armed (exit 4)."""
 
 
 def run(*cmd, cwd=None, check=True, capture=True):
@@ -595,20 +609,49 @@ class GitHub:
             raise Refused(f"#{n} has no APPROVE for its current head {pr['headRefOid'][:12]}")
 
     def pr_review(self, n, verdict, sha, body):
-        if self.head(n)["headRefOid"] != sha:
+        pr = self.head(n)
+        if pr["headRefOid"] != sha:
             raise Refused(f"#{n}'s head moved since {sha[:12]}; review the new head")
         self.gh("pr", "review", str(n), "--comment", "--body", body)
         state = "success" if verdict == "APPROVE" else "failure"
         self.set_status(sha, state, f"{verdict} by teamflow:code-reviewer")
         print(f"#{n}: {verdict} recorded at {sha[:12]}")
+        if verdict == "APPROVE":
+            self.arm(n, pr)
+
+    def ruleset_requires_review(self, base):
+        """Whether a ruleset on `base` requires both the `gate` and the review status; the read can raise."""
+        rules = json.loads(self.api(f"repos/{self.slug}/rules/branches/{base}"))
+        contexts = {c["context"] for r in rules if r["type"] == "required_status_checks"
+                    for c in r["parameters"]["required_status_checks"]}
+        return {GATE, STATUS} <= contexts
+
+    def arm(self, n, pr):
+        """After an APPROVE: with the ruleset, enable auto-merge pinned to the reviewed head, so GitHub merges
+        once the required checks pass and no merge command follows. Arms nothing for a stacked PR or without
+        the ruleset. The verdict is already recorded, so a failure here raises ArmFailed."""
+        if pr["baseRefName"] != self.cfg["base"]:
+            print(f"#{n} targets {pr['baseRefName']}, not {self.cfg['base']}: auto-merge not enabled; merge its dependency first")
+            return
+        try:
+            if not self.ruleset_requires_review(pr["baseRefName"]):
+                print(f"#{n}: no ruleset requires `{GATE}` and `{STATUS}`: auto-merge not enabled; run tf pr merge {n}")
+                return
+            print(self.gh(*self.merge_args(n, pr), "--auto") or
+                  f"#{n}: auto-merge requested; tf pr view {n} shows whether GitHub merged it or queued it")
+        except (RuntimeError, ValueError, KeyError) as e:
+            raise ArmFailed(f"verdict recorded, but auto-merge was not enabled ({e}); run tf pr merge {n}")
+
+    def merge_args(self, n, pr):
+        body = "\n".join([*(f"Closes #{i}" for i in closes(pr["body"])), "Reviewed-by: teamflow:code-reviewer"])
+        return ["pr", "merge", str(n), "--merge", "--match-head-commit", pr["headRefOid"],
+                "--subject", f"Merge {pr['headRefName']}: {pr['title']}", "--body", body]
 
     def pr_merge(self, n):
         pr = self.head(n)
         self.targets_base(n, pr)
         self.approved(n, pr)
-        body = "\n".join([*(f"Closes #{i}" for i in closes(pr["body"])), "Reviewed-by: teamflow:code-reviewer"])
-        args = ["pr", "merge", str(n), "--merge", "--match-head-commit", pr["headRefOid"],
-                "--subject", f"Merge {pr['headRefName']}: {pr['title']}", "--body", body]
+        args = self.merge_args(n, pr)
         for required, checks, error in self.polls(n):
             if required or checks and not pending_names(checks):  # a ruleset enforces its required checks
                 break
@@ -864,6 +907,9 @@ def main():
     except Refused as e:
         print(f"tf: {e}", file=sys.stderr)
         sys.exit(3)
+    except ArmFailed as e:
+        print(f"tf: {e}", file=sys.stderr)
+        sys.exit(4)
     except (RuntimeError, OSError) as e:
         print(f"tf: {e}", file=sys.stderr)
         sys.exit(1)

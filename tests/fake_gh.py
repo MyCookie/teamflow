@@ -21,6 +21,11 @@ answer that holds a pending check exits 8, which `gh pr checks --help` documents
 the JSON is still printed alongside exit 8 is unverified; it is what this fake does.
 A PR's "auto_merge" key (set by `pr merge --auto`) makes `autoMergeRequest` an object, else null;
 that real gh prints null for an unarmed PR was not checked, and tf treats null and a missing key alike.
+"auto_merges_when_clean" makes `pr merge --auto` on a PR whose merge state is CLEAN (the default here) merge it at once,
+as gh's source does (read, not run). "merge_error" makes any `pr merge` fail with an HTTP 502.
+The rules API (`repos/<slug>/rules/branches/<base>`, read-only) answers with a `required_status_checks` rule naming
+the contexts of "rule_contexts", else `gate` and `teamflow/code-review` when "required" is set, else no rules;
+"rules_error" makes it fail with an HTTP 500. The answer's shape follows one real call on this repository.
 """
 
 import json
@@ -175,12 +180,19 @@ def main():
             state["reviews"].append({"pr": rest[0], "body": opt(rest, "--body")})
             save(state)
         elif verb == "merge":
+            if state.get("merge_error"):
+                print("gh: HTTP 502", file=sys.stderr)
+                sys.exit(1)
             if opt(rest, "--match-head-commit") != pr_json(state, rest[0])["headRefOid"]:
                 print("head branch was modified", file=sys.stderr)
                 sys.exit(1)
-            state["merges"].append({"pr": rest[0], "auto": "--auto" in rest, "subject": opt(rest, "--subject")})
-            if "--auto" in rest:
-                state["prs"][rest[0]]["auto_merge"] = True
+            state["merges"].append({"pr": rest[0], "auto": "--auto" in rest, "subject": opt(rest, "--subject"),
+                                    "body": opt(rest, "--body"), "match": opt(rest, "--match-head-commit")})
+            pr = state["prs"][rest[0]]
+            if "--auto" in rest and state.get("auto_merges_when_clean") and pr.get("merge_state", "CLEAN") == "CLEAN":
+                pr["state"] = "MERGED"
+            elif "--auto" in rest:
+                pr["auto_merge"] = True
             else:
                 state["prs"][rest[0]]["state"] = "MERGED"
             save(state)
@@ -202,6 +214,14 @@ def main():
                     state.setdefault("rulesets", []).append(json.load(f))
                 save(state)
             print(json.dumps(state.get("rulesets", [])))
+            return
+        if "/rules/branches/" in path:
+            if state.get("rules_error"):
+                print("gh: Server Error (HTTP 500)", file=sys.stderr)
+                sys.exit(1)
+            contexts = state.get("rule_contexts", ["gate", "teamflow/code-review"] if state["required"] else [])
+            print(json.dumps([{"type": "deletion"}] + ([{"type": "required_status_checks", "parameters": {
+                "required_status_checks": [{"context": c} for c in contexts]}}] if contexts else [])))
             return
         if "/contents/" in path:
             wanted = path.split("/contents/", 1)[1].split("?", 1)[0]

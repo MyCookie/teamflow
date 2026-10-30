@@ -28,9 +28,10 @@ The mode comes from `forge` in .claude/teamflow.json (see teamflow-config):
 - github: Issues and PRs live on GitHub. A `teamflow/code-review` commit status
   on the reviewed head is the claim (pending) and the verdict (success or
   failure), replacing review labels; CI's checks replace the reviewer's own
-  gate run. Where a ruleset makes checks required, GitHub enforces them and
-  merges once they pass. Without one, tf checks the CI `gate` check and the
-  verdict itself before merging, which is a process control only.
+  gate run. Where a ruleset requires both `gate` and `teamflow/code-review`,
+  GitHub enforces them and merges once they pass. Otherwise (no ruleset, one
+  that lacks either, or one that cannot be read) tf checks the CI `gate` check
+  and the verdict itself before merging, which is a process control only.
   `tf pr review --verdict APPROVE` arms auto-merge (`gh pr merge --auto`,
   pinned to the reviewed head) when the PR targets the configured base and
   `repos/<slug>/rules/branches/<base>` lists a required status check for both
@@ -43,9 +44,10 @@ The mode comes from `forge` in .claude/teamflow.json (see teamflow-config):
   If the repository adopted github but gh is missing, unauthenticated, or the
   remote is not GitHub, every command stops (exit 2): never a silent fallback.
 
-On GitHub, `tf pr gate` and an unenforced `tf pr merge` (no ruleset) wait for
-pending CI checks, polling every TF_GATE_POLL seconds (default 15) for up to
-TF_GATE_WAIT seconds (default 480), then report the result. With a ruleset,
+On GitHub, `tf pr gate` and an unenforced `tf pr merge` (no ruleset requiring both
+contexts) wait for pending CI checks, polling every TF_GATE_POLL seconds (default 15)
+for up to TF_GATE_WAIT seconds (default 480), then report the result. An unenforced
+merge judges the `gate` check alone, whatever else is required. With a ruleset requiring both,
 `tf pr merge` does not wait for pending checks: it retries only a failed read of
 the required checks, then enables auto-merge. A failed poll or an empty check
 list is retried the same way. `tf pr merge` has one TF_GATE_WAIT deadline for
@@ -556,19 +558,20 @@ class GitHub:
             raise RuntimeError(f"gh pr checks failed ({result.returncode}): {(result.stderr or result.stdout).strip()}")
         return [c for c in data if c["name"] != STATUS]
 
-    def polls(self, n):
+    def polls(self, n, own=False):
         """Yield (required, checks, error) once per poll of the PR's gating checks, until one TF_GATE_WAIT deadline.
 
         `required` is the PR's required checks, `checks` those that gate it (the required ones, else the
-        `gate` check), `error` the failed read, if any. The caller stops the loop when it has what it needs;
-        the last yield is the state at the deadline. A failed or empty poll is retried.
+        `gate` check), `error` the failed read, if any. With `own`, tf does not trust the required checks:
+        `required` stays empty and `checks` is the `gate` check alone. The caller stops the loop when it has
+        what it needs; the last yield is the state at the deadline. A failed or empty poll is retried.
         """
         wait, poll = gate_timing()
         deadline, announced = time.monotonic() + wait, False
         while True:
             error = None
             try:
-                required = self.checks(n, required=True)
+                required = [] if own else self.checks(n, required=True)
                 checks = required or [c for c in self.checks(n, required=False) if c["name"] == GATE]
             except RuntimeError as e:
                 required, checks, error = [], [], e  # transient: never fall back to `gate` alone on a failed --required query
@@ -652,7 +655,12 @@ class GitHub:
         self.targets_base(n, pr)
         self.approved(n, pr)
         args = self.merge_args(n, pr)
-        for required, checks, error in self.polls(n):
+        try:
+            trusted = self.ruleset_requires_review(pr["baseRefName"])
+        except (RuntimeError, ValueError, KeyError) as e:  # never arm auto-merge on a ruleset that was not read
+            print(f"#{n}: could not read the ruleset ({e}): checking `{GATE}` and the verdict myself, then merging directly")
+            trusted = False
+        for required, checks, error in self.polls(n, own=not trusted):
             if required or checks and not pending_names(checks):  # a ruleset enforces its required checks
                 break
         if not required:

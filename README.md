@@ -130,9 +130,12 @@ modes, set by `forge` in `.claude/teamflow.json`:
   fallback, when arming fails (`tf pr review` exits 4 with the verdict
   recorded). `tf pr review` arms nothing for a stacked PR or a repository
   whose rules do not name both `gate` and `teamflow/code-review`, and says so.
-  Without a ruleset (for example a private repository on a free plan), the
-  reviewer runs `tf pr merge`, which checks them itself and merges: the same
-  process control as local mode.
+  Without such a ruleset (none, for example a private repository on a free
+  plan; one lacking either context; or one `tf` cannot read), the reviewer runs
+  `tf pr merge`, which never arms auto-merge there: it waits for the `gate`
+  check, checks it and the verdict itself, and merges directly: the same
+  process control as local mode. Another required check (say `build`) does not
+  stand in for `gate`: a red `gate` stops the merge.
 
 To adopt GitHub mode, run `tf setup --forge github` as above. The ruleset
 requires the CI gate, so `tf setup` creates it only once
@@ -218,8 +221,11 @@ What follows is what a human does.
   (read from gh's source, modelled in the fake); what a second `--auto` on an
   armed PR does (spike #226 was not run; the exit-4 fallback `tf pr merge` can
   issue one); whether auto-merge stays armed across a rework push; the rules
-  endpoint on a repository without ruleset support (`tf` treats a failed read
-  as exit 4); and classic branch protection, which `tf` does not detect.
+  endpoint on a repository without ruleset support (`tf pr review` treats a failed read
+  as exit 4, `tf pr merge` says it could not read the ruleset and takes its
+  own path); and classic branch protection, which `tf` does not detect. The
+  `tf pr merge` paths for a ruleset lacking a context or unreadable are also
+  tested only against the fake `gh`.
 
 No tag, changelog or extra gate step is needed; `git log` is the record.
 

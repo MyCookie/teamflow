@@ -632,7 +632,7 @@ class GitHubFlow(unittest.TestCase):
     def test_unenforced_merge_treats_an_unreadable_gate_check_as_a_stop(self):
         head = self.open_pr()
         self.ok("pr", "review", "2", "--verdict", "APPROVE", "--sha", head, "--body", "ok", cwd=self.rev)
-        self.set_checks(head, "pass")  # no ruleset: the required-checks read reports none and the gate check is read
+        self.set_checks(head, "pass")  # no ruleset: only the gate check is read
         self.set_check_seq(head, ["error"])
         result = self.tf("pr", "merge", "2", cwd=self.rev, env={"TF_GATE_WAIT": "0.1", "TF_GATE_POLL": "0.01"})
         self.assertEqual(result.returncode, 3, result.stdout + result.stderr)
@@ -644,6 +644,7 @@ class GitHubFlow(unittest.TestCase):
         head = self.open_pr()
         self.ok("pr", "review", "2", "--verdict", "APPROVE", "--sha", head, "--body", "ok", cwd=self.rev)
         self.set_checks(head, "pending")  # no ruleset, and the `gate` check never finishes
+        self.set_check_seq(head, ["error"] * 7 + ["pending"])  # 7 failed reads: a second wait would show
         wait, poll = 3, 0.2
         result = self.tf("pr", "merge", "2", cwd=self.rev, env={"TF_GATE_WAIT": str(wait), "TF_GATE_POLL": str(poll)})
         self.assertEqual(result.returncode, 3, result.stdout + result.stderr)

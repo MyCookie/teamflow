@@ -10,8 +10,10 @@ contents API finds on the default branch. "check_seq" maps a head SHA to a list
 of buckets for the `gate` check: each `pr checks` call reads the first and drops
 it, except the last, which stays. A bucket of "empty" answers with no checks, and
 "error" fails the call with an HTTP 502. "required_errors" is a count of
-`pr checks --required` calls that fail that way before the rest answer. "required_names" limits `pr checks --required` to the checks of those names. "reads" counts the `pr checks`
-calls, as {"required": n, "all": m}. "checks_stdout" makes every `pr checks` call print that text
+`pr checks --required` calls that fail that way before the rest answer.
+"required_names" limits `pr checks --required` to the checks of those names.
+"reads" counts the `pr checks` calls, as {"required": n, "all": m}.
+"checks_stdout" makes every `pr checks` call print that text
 and exit 1 with nothing on stderr. "revoke_on_pending" makes a `pr checks`
 answer that holds a pending check also record a failure of the review status on the head, as
 a reviewer rejecting it meanwhile would. "change_on_pending" does the same with a dict of PR fields

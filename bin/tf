@@ -44,11 +44,14 @@ The mode comes from `forge` in .claude/teamflow.json (see teamflow-config):
   If the repository adopted github but gh is missing, unauthenticated, or the
   remote is not GitHub, every command stops (exit 2): never a silent fallback.
 
-On GitHub, `tf pr gate` and an unenforced `tf pr merge` (no ruleset requiring both
-contexts) wait for pending CI checks, polling every TF_GATE_POLL seconds (default 15)
-for up to TF_GATE_WAIT seconds (default 480), then report the result. An unenforced
-merge judges the `gate` check alone, whatever else is required. With a ruleset requiring both,
-`tf pr merge` does not wait for pending checks: it retries only a failed read of
+On GitHub, `tf pr gate` and an unenforced `tf pr merge` (no ruleset requiring
+both contexts) wait for pending CI checks, polling every TF_GATE_POLL seconds
+(default 15) for up to TF_GATE_WAIT seconds (default 480), then report the
+result. An unenforced merge judges the `gate` check alone, whatever else is
+required, and merges directly; if another required check is red or pending,
+GitHub is expected to refuse that merge (exit 1; by reading only, not
+observed). With a ruleset requiring both, `tf pr merge` does not wait for
+pending checks: it retries only a failed read of
 the required checks, then enables auto-merge. A failed poll or an empty check
 list is retried the same way. `tf pr merge` has one TF_GATE_WAIT deadline for
 all of it, not one per step. tf puts no time limit on the gh calls, so the

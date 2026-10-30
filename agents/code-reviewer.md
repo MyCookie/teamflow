@@ -227,10 +227,10 @@ ruleset requiring both `gate` and `teamflow/code-review` it waits only while
 CI's required checks cannot be read, then enables auto-merge and GitHub merges
 once every required check passes; without one (no ruleset, one lacking either
 context, or one `tf` cannot read, which it says), `tf` waits for pending CI,
-then checks the `gate` check and your verdict itself, and merges. There it reads your verdict again after the wait and
-refuses (exit 3) if it is no longer an APPROVE for the head. Either way the
-merge is pinned to the head you approved. The exit codes are in the workflow
-skill, "Issues and PRs: `tf`", merge cases included.
+then checks the `gate` check and your verdict itself, and merges. There it
+reads your verdict again after the wait and refuses (exit 3) if it is no
+longer an APPROVE for the head. Either way the merge is pinned to the head
+you approved. The exit codes are in the workflow skill, "Issues and PRs: `tf`", merge cases included.
 
 Every other non-zero exit is a STOP: report it, do not work around it. Never
 reach for `--admin`, a direct `git push`, or a self-approval.

@@ -234,8 +234,8 @@ finished, but a missing `gate` check (exit 2), unreadable CI and pending
 checks (exit 3) only after the full `TF_GATE_WAIT`. `tf pr merge` on GitHub
 uses the same codes: without a ruleset requiring both contexts, exit 1 is a
 red `gate` check or a failed merge, exit 2 a missing `gate` check or a bad
-`TF_GATE_WAIT` or `TF_GATE_POLL` (also with such a ruleset); locally, exit 1 is a failed
-merge that is not a conflict. `tf --help` has the timing of the wait.
+`TF_GATE_WAIT` or `TF_GATE_POLL` (also with such a ruleset); locally, exit 1 is
+a failed merge that is not a conflict. `tf --help` has the timing of the wait.
 
 ## Domain language
 When the project has `CONTEXT.md` (its glossary) or `docs/adr/` (its

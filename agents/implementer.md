@@ -71,8 +71,9 @@ scope.
    template, and on GitHub it pushes the branch first.
 5. Stop and report (your final message; call `SubagentHandback` if you have
    that tool, since plain final text is not delivered): PR number, Issues closed,
-   gate result, any caveats. You never spawn a reviewer and never merge:
-   impl-lead spawns a `code-reviewer`, which merges on APPROVE.
+   gate result, any caveats. You never spawn a reviewer and never merge or arm
+   auto-merge (`tf pr create` arms nothing): impl-lead spawns a
+   `code-reviewer`, whose APPROVE arms auto-merge or leads to a merge.
 6. If the reviewer requests changes, impl-lead resumes you with the
    findings. Fix every `blocker` and `major` on the same branch (check each
    suggested fix before adopting it), re-run the gate, and report again.

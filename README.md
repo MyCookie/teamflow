@@ -4,7 +4,7 @@ A Claude Code plugin that runs a three-team agent pipeline in any repository:
 research turns goals into Issues, implementation works them in isolated
 worktrees, and review files follow-up Issues, under a manager that governs
 the review-implement loop. Every PR is reviewed by a fresh, independent
-`code-reviewer`, the only actor allowed to merge.
+`code-reviewer`, the only actor that arms or runs a merge.
 
 ## Install
 
@@ -53,8 +53,17 @@ lists the checks that the team works.
 version not recorded; not re-run here) that auto mode refused `tf issue
 close` ("[External System Writes]") until `"Bash(tf *)"` was in
 `permissions.allow`, and refused reviewer `tf pr merge` runs ("[Merge Without
-Review]") even with the rule in the shared file, cause unverified. The
-reasons and rule syntax were not checked against Claude Code's docs. If auto
+Review]") even with the rule in the shared file, cause unverified. A count
+over that project's session transcripts (a research-lead, reported on #227;
+not re-run here) found plain `tf pr merge <N>` refused 0 times and run 21
+times, and `tf pr merge <N>` with more on the same line (for example `; echo
+"exit=$?"`) refused 10 times and run 42 times. That is a correlation, not an
+established cause. The reasons and rule syntax were not checked against
+Claude Code's docs. In GitHub mode with the ruleset, `tf pr review
+--verdict APPROVE` now arms auto-merge itself, so the reviewer runs no merge
+command on the normal path (decided on #227). Auto mode reads the command
+text, not what `tf` runs inside it, and whether it treats `tf pr review`
+differently from `tf pr merge` is untested. If auto
 mode stops your sessions, add the rule to an existing `permissions.allow` in
 the repository root where the leads start:
 
@@ -109,15 +118,21 @@ modes, set by `forge` in `.claude/teamflow.json`:
 - **`local` (default).** No forge and no `gh` needed. Issues and PRs are
   records in the git common directory (`.git/teamflow/`), shared by every
   worktree and never committed or pushed. The code-reviewer runs the gate and
-  merges into `main` itself. Separation of reviewer and author is a process
+  merges into `main` itself with `tf pr merge`. Separation of reviewer and author is a process
   rule.
 - **`github` (opt-in).** Issues and PRs live on GitHub. The local
   duplicates switch off: a `teamflow/code-review` commit status on the
   reviewed head replaces review labels, CI's `gate` check replaces the
   reviewer's second gate run. With the teamflow branch ruleset, GitHub
-  enforces both and merges once they pass. Without a ruleset (for example a
-  private repository on a free plan), `tf` checks them itself and merges:
-  the same process control as local mode.
+  enforces both: the reviewer's `tf pr review --verdict APPROVE` arms
+  auto-merge, pinned to the reviewed head, and GitHub merges once they pass
+  (at once if the PR is already clean). `tf pr merge` is then only the
+  fallback, when arming fails (`tf pr review` exits 4 with the verdict
+  recorded). `tf pr review` arms nothing for a stacked PR or a repository
+  whose rules do not name both `gate` and `teamflow/code-review`, and says so.
+  Without a ruleset (for example a private repository on a free plan), the
+  reviewer runs `tf pr merge`, which checks them itself and merges: the same
+  process control as local mode.
 
 To adopt GitHub mode, run `tf setup --forge github` as above. The ruleset
 requires the CI gate, so `tf setup` creates it only once
@@ -126,7 +141,8 @@ merges, run `tf setup --forge github --apply` once more from the main
 worktree. Rulesets need a public repository or a paid plan; without them
 `tf setup` says so and GitHub mode runs unenforced.
 
-On GitHub, `tf pr gate` and `tf pr merge` can wait for CI, bounded by
+On GitHub, `tf pr gate` and `tf pr merge` can wait for CI (`tf pr review`
+has no wait, read in `bin/tf`), bounded by
 `TF_GATE_WAIT` and polled every `TF_GATE_POLL`; if your CI takes long, see
 `tf --help` for both settings and how long the wait can run.
 
@@ -195,6 +211,15 @@ What follows is what a human does.
   `tf pr gate` on an already-queued auto-merge, nor the `merge state:` value
   `behind` (only `blocked` on an open PR and `unknown` on a merged PR were
   observed).
+- **Arming on APPROVE, not tested against GitHub.** `tf pr review` arming
+  auto-merge, exit 4, and the no-arm notes were tested only against a fake
+  `gh` (`tests/test_tf.py`, `test_approve_*` and related). Unverified: all of
+  it against real GitHub; that `--auto` merges an already-clean PR at once
+  (read from gh's source, modelled in the fake); what a second `--auto` on an
+  armed PR does (spike #226 was not run; the exit-4 fallback `tf pr merge` can
+  issue one); whether auto-merge stays armed across a rework push; the rules
+  endpoint on a repository without ruleset support (`tf` treats a failed read
+  as exit 4); and classic branch protection, which `tf` does not detect.
 
 No tag, changelog or extra gate step is needed; `git log` is the record.
 

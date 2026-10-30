@@ -72,8 +72,8 @@ Each check is cheap and catches a different failure:
 4. Asked to edit a source file, the manager refuses.
 5. A trivial Issue (a typo) goes through the implementation path: impl-lead
    shows a plan and waits, the implementer works in its own worktree and
-   opens the PR with `tf pr create`, and exactly one code-reviewer claims,
-   reviews and merges it.
+   opens the PR with `tf pr create`, and exactly one code-reviewer claims
+   and reviews it, and the merge step follows (code-reviewer section 6).
 
 Afterwards remove leftover worktrees (`git worktree list`) and the
 `worktree-agent-*` branches that isolated subagents leave behind.

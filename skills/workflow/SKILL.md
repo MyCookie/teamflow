@@ -212,7 +212,7 @@ worktrees.
 | One reviewer per PR | `tf pr claim`: a lock | `tf pr claim`: a pending `teamflow/code-review` status on the head |
 | Gate at review | The reviewer runs `scripts/gate.sh` (`tf pr gate`) | CI's required checks on the head (`tf pr gate`); no second local run |
 | Verdict | Recorded against the reviewed head SHA | A PR comment plus a `teamflow/code-review` status on that SHA |
-| Merge | `tf pr merge` merges into the base branch; nothing is pushed | With a ruleset, `tf pr merge` enables auto-merge and GitHub merges once required checks pass; without one, `tf` checks the CI `gate` check and the verdict itself, then merges, waiting for pending CI like `tf pr gate`. Every GitHub `tf pr merge` can block up to `TF_GATE_WAIT`, so it needs the long Bash timeout |
+| Merge | `tf pr merge` merges into the base branch; nothing is pushed | With a ruleset, `tf pr review --verdict APPROVE` enables auto-merge, pinned to the reviewed head, and GitHub merges once required checks pass (at once if the PR is already clean); `tf pr merge` is only the fallback. Without one, `tf pr review` arms nothing, and `tf pr merge` checks the CI `gate` check and the verdict itself, then merges, waiting for pending CI like `tf pr gate`. Every GitHub `tf pr merge` can block up to `TF_GATE_WAIT`, so it needs the long Bash timeout |
 | Stacked PR after its dependency merges | `tf` retargets it to the base branch | GitHub retargets it, because adoption deletes merged branches (`delete_branch_on_merge`); without that it stays on the old base |
 
 A repository that adopted `github` but lacks `gh`, its login, or a GitHub
@@ -224,8 +224,10 @@ from forks cannot be reviewed.
 
 Exit codes: 0 ok, 1 error, 2 setup or usage problem, 3 refused because of PR
 state (claimed, moved head, no approval, or after the wait of `tf pr gate` or
-`tf pr merge`, CI still running or unreadable). Exit 3 is a STOP, not a retry
-signal. `tf pr gate` exits 1 for a red gate in both modes (locally, any
+`tf pr merge`, CI still running or unreadable), 4 the verdict of `tf pr review
+--verdict APPROVE` is recorded but auto-merge was not armed (its status
+stays set; code-reviewer section 6 says what to do). Exit 3 is a STOP, not a
+retry signal. `tf pr gate` exits 1 for a red gate in both modes (locally, any
 nonzero result of `scripts/gate.sh`, so also a gate that could not run: read
 its output). On GitHub it reports a red check as soon as every check has
 finished, but a missing `gate` check (exit 2), unreadable CI and pending
@@ -362,8 +364,10 @@ evidence.
 ## Review and merge
 - **Per PR:** a fresh `teamflow:code-reviewer` checks the gate, reviews
   against the Issue and these rules, records its verdict for the exact head
-  it reviewed, and merges on `APPROVE` with `tf pr merge`. It is the only
-  actor that merges.
+  it reviewed, and on `APPROVE` sees to the merge as its section 6 says
+  (`tf pr review` arms auto-merge, or the reviewer runs `tf pr merge`). It is
+  the only actor that arms or runs a merge: `tf pr create` arms nothing (no
+  auto-merge code in it, read in `bin/tf`).
 - **Who spawns it:** `impl-lead` for its team's PRs, owning the rounds;
   `review-lead` only in merge-review mode.
 - **One reviewer per PR.** The spawning lead runs `tf pr claim <N>` first
@@ -377,10 +381,11 @@ evidence.
   reviewer only once it targets the base branch. A dependency that is
   escalated or stays unmerged (see *Queued merge*) leaves its stacked PR
   unreviewed; impl-lead escalates that PR too.
-- **Queued merge** (GitHub with the ruleset; locally `tf pr merge` merges
-  at once). A queued auto-merge has no event source, so impl-lead drives it
-  right after each `APPROVE` that leaves one, for every PR, stacked
-  dependencies included. No human is involved and nobody polls.
+- **Queued merge** (GitHub with the ruleset, armed by `tf pr review` or by
+  the fallback `tf pr merge`; locally `tf pr merge` merges at once). A queued
+  auto-merge has no event source, so impl-lead drives it right after each
+  `APPROVE` that leaves one (the reviewer's report says so), for every PR,
+  stacked dependencies included. No human is involved and nobody polls.
   1. Run `tf pr gate <N>` once, with the long Bash timeout. When it returns
      is described in the exit-code paragraph of "Issues and PRs: `tf`".
      Exit 0: go to 2. Exit 1 (red), 2 (no `gate` check) or 3 (CI pending or
@@ -391,9 +396,12 @@ evidence.
      `mergeStateStatus`, lowercased).
      - `behind`: the base moved on and the ruleset holds the merge. Resume
        the implementer to merge the base into its branch (never rebase or
-       force-push) and run a new round. That round's `APPROVE` queues a new
-       auto-merge, so this procedure runs again for it, including one new
+       force-push) and run a new round. That round's `APPROVE` arms auto-merge
+       again, so this procedure runs again for it, including one new
        `tf pr gate`. Review handoff's five-round limit bounds the loop.
+       Whether the earlier auto-merge stays armed across the push, and what
+       a second `--auto` on an armed PR does, are unverified (spike #226 was
+       not run).
      - Any other value: run `tf pr view <N>` once more, without waiting,
        because GitHub can merge a moment after the checks finish. Merged:
        done. Still open: the PR *stays unmerged*. Escalate to @manager and
@@ -419,7 +427,16 @@ On GitHub the teamflow branch ruleset enforces that no merge happens
 without the CI gate and an approving `teamflow/code-review` status on the
 current head, so a push after approval always needs a new review. It does
 not prove who reviewed: every agent shares one `gh` login and could set that
-status. Without the ruleset, `tf` checks the same things itself.
+status. Without the ruleset, `tf` checks the same things itself. Arming
+auto-merge adds no check of its own: the ruleset's required contexts still
+decide when GitHub merges. The merge behaviour of `tf pr review` is tested
+against a fake `gh` (`tests/test_tf.py`: `test_approve_arms_auto_merge_on_a_ruleset_repository`,
+`test_approve_on_a_stacked_pr_arms_nothing`,
+`test_approve_arms_nothing_unless_the_ruleset_requires_both_contexts`,
+`test_request_changes_arms_nothing`,
+`test_arming_failure_after_the_verdict_exits_4_and_keeps_the_verdict`),
+not against real GitHub. That `--auto` merges a clean PR at once is read
+from gh's source (modelled in `test_approve_that_makes_the_pr_clean_can_merge_it_at_once`), not run.
 
 ## Cleanup
 When a unit merges: `git worktree remove <path>`, delete the branch, and

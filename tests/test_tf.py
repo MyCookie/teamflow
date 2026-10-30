@@ -612,7 +612,8 @@ class GitHubFlow(unittest.TestCase):
         wait = {"TF_GATE_WAIT": "30", "TF_GATE_POLL": "0.01"}
 
         state = self.gh_state()  # a 502 on the required-checks poll that clears: retried like tf pr gate
-        state["required_errors"] = 2
+        self.assertEqual(len(state["merges"]), 1)  # the review armed auto-merge; tf pr merge below is the fallback
+        state["merges"], state["required_errors"] = [], 2
         self.state.write_text(json.dumps(state))
         result = self.tf("pr", "merge", "2", cwd=self.rev, env=wait)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -709,6 +710,10 @@ class GitHubFlow(unittest.TestCase):
         head = self.open_pr()
         self.set_checks(head, "pass", required=True)
         self.ok("pr", "review", "2", "--verdict", "APPROVE", "--sha", head, "--body", "ok", cwd=self.rev)
+        state = self.gh_state()
+        self.assertEqual(len(state["merges"]), 1)  # the review armed auto-merge; only tf pr merge is under test here
+        state["merges"] = []
+        self.state.write_text(json.dumps(state))
         for env in ({"TF_GATE_WAIT": "abc"}, {"TF_GATE_WAIT": "-1"}, {"TF_GATE_POLL": "0"}):
             result = self.tf("pr", "merge", "2", cwd=self.rev, env=env)
             self.assertEqual(result.returncode, 2, f"{env}: {result.stdout}{result.stderr}")
@@ -754,17 +759,18 @@ class GitHubFlow(unittest.TestCase):
         self.set_checks(head, "pass", required=True)
         self.ok("pr", "gate", "2", cwd=self.rev)
         self.ok("pr", "review", "2", "--verdict", "APPROVE", "--sha", head, "--body", "ok", cwd=self.rev)
-        self.ok("pr", "merge", "2", cwd=self.rev)
-        self.assertTrue(self.gh_state()["merges"][-1]["auto"])
+        self.assertEqual([m["auto"] for m in self.gh_state()["merges"]], [True])  # armed by the review itself
         self.assertEqual(self.gh_state()["prs"]["2"]["state"], "OPEN")  # GitHub merges it later
+        self.ok("pr", "merge", "2", cwd=self.rev)  # the fallback when arming failed: arms again
+        self.assertEqual([m["auto"] for m in self.gh_state()["merges"]], [True, True])
+        self.assertEqual(self.gh_state()["prs"]["2"]["state"], "OPEN")
 
     def test_pr_view_shows_the_auto_merge_state(self):
         head = self.open_pr()
         self.set_checks(head, "pass", required=True)
         self.assertIn("merge state: clean\nauto-merge: off\n", self.ok("pr", "view", "2"))
         self.ok("pr", "gate", "2", cwd=self.rev)
-        self.ok("pr", "review", "2", "--verdict", "APPROVE", "--sha", head, "--body", "ok", cwd=self.rev)
-        self.ok("pr", "merge", "2", cwd=self.rev)  # ruleset: arms auto-merge
+        self.ok("pr", "review", "2", "--verdict", "APPROVE", "--sha", head, "--body", "ok", cwd=self.rev)  # ruleset: arms auto-merge
         self.assertIn("merge state: clean\nauto-merge: on\n", self.ok("pr", "view", "2"))
 
     def test_ruleset_merge_does_not_wait_for_unfinished_or_red_required_checks(self):
@@ -781,6 +787,83 @@ class GitHubFlow(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 self.assertEqual(self.gh_state()["reads"], {"required": 1, "all": 0})  # one read, no waiting
                 self.assertTrue(self.gh_state()["merges"][-1]["auto"])
+
+    def review(self, head, verdict="APPROVE", body="ok"):
+        return self.tf("pr", "review", "2", "--verdict", verdict, "--sha", head, "--body", body, cwd=self.rev)
+
+    def test_approve_arms_auto_merge_on_a_ruleset_repository(self):
+        head = self.open_pr()
+        self.set_checks(head, "pass", required=True)
+        result = self.review(head, body="Closes #9 in the review body, which must not be used")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        merges = self.gh_state()["merges"]
+        self.assertEqual(len(merges), 1)  # exactly one, with no tf pr merge after the review
+        self.assertEqual(merges[0], {"pr": "2", "auto": True, "subject": "Merge feat/1-v2: feat: v2",
+                                     "body": "Closes #1\nReviewed-by: teamflow:code-reviewer", "match": head})
+        self.assertIn("success (APPROVE", self.ok("pr", "view", "2"))
+        self.assertIn("auto-merge: on", self.ok("pr", "view", "2"))
+
+    def test_approve_that_makes_the_pr_clean_can_merge_it_at_once(self):
+        head = self.open_pr()
+        self.set_checks(head, "pass", required=True)
+        state = self.gh_state()
+        state["auto_merges_when_clean"] = True
+        self.state.write_text(json.dumps(state))
+        result = self.review(head)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("state: merged", self.ok("pr", "view", "2"))
+
+    def test_approve_on_a_stacked_pr_arms_nothing(self):
+        head = self.open_pr()
+        self.set_checks(head, "pass", required=True)
+        state = self.gh_state()
+        state["prs"]["2"]["base"] = "feat/0-dep"
+        state["auto_merges_when_clean"] = True  # arming would merge it into its dependency
+        self.state.write_text(json.dumps(state))
+        result = self.review(head)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("not main", result.stdout)
+        self.assertEqual(self.gh_state()["merges"], [])
+        self.assertIn("success (APPROVE", self.ok("pr", "view", "2"))
+
+    def test_approve_arms_nothing_unless_the_ruleset_requires_both_contexts(self):
+        head = self.open_pr()
+        for contexts in ([], ["gate"], ["teamflow/code-review"]):
+            with self.subTest(contexts=contexts):
+                self.set_checks(head, "pass", required=True)  # `pr checks --required` is non-empty, as it is with only a gate rule
+                state = self.gh_state()
+                state["rule_contexts"] = contexts
+                self.state.write_text(json.dumps(state))
+                result = self.review(head)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn("tf pr merge 2", result.stdout)
+                self.assertEqual(self.gh_state()["merges"], [])
+
+    def test_request_changes_arms_nothing(self):
+        head = self.open_pr()
+        self.set_checks(head, "pass", required=True)
+        result = self.review(head, verdict="REQUEST_CHANGES", body="no")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.gh_state()["merges"], [])
+        self.assertIn("failure (REQUEST_CHANGES", self.ok("pr", "view", "2"))
+
+    def test_arming_failure_after_the_verdict_exits_4_and_keeps_the_verdict(self):
+        head = self.open_pr()
+        self.set_checks(head, "pass", required=True)
+        for key in ("merge_error", "rules_error"):  # gh refuses the merge; the ruleset cannot be read
+            with self.subTest(key=key):
+                state = self.gh_state()
+                state[key] = True
+                self.state.write_text(json.dumps(state))
+                result = self.review(head)
+                self.assertEqual(result.returncode, 4, result.stdout + result.stderr)
+                self.assertIn("verdict recorded", result.stderr)
+                self.assertIn("tf pr merge 2", result.stderr)
+                self.assertIn("success (APPROVE", self.ok("pr", "view", "2"))
+                self.assertEqual(self.gh_state()["merges"], [])
+                state = self.gh_state()
+                state.pop(key)
+                self.state.write_text(json.dumps(state))
 
     def test_missing_gh_stops(self):
         bare_path = Path(self.tmp.name) / "nogh"

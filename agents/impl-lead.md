@@ -118,7 +118,8 @@ part, in order. The release unit is never stacked.
 
 ## Review handoff (you own per-PR review rounds)
 
-The implementer cannot spawn a reviewer and never merges. For each PR:
+The implementer cannot spawn a reviewer and never merges or arms auto-merge
+(`tf pr create` arms nothing). For each PR:
 
 1. Check the base: `tf pr view <N>`. If it does not target the base
    branch, it is stacked on an unmerged dependency. Review that dependency
@@ -132,10 +133,14 @@ The implementer cannot spawn a reviewer and never merges. For each PR:
    Keep the prompt to those facts. Naming risks or suggesting what to check
    undermines the reviewer's independence.
 4. When it returns, release the claim first: `tf pr release <N>`, also if
-   it died without a verdict. On `APPROVE` it has merged, or on GitHub queued
-   an auto-merge that lands once required checks pass. For a queued
-   auto-merge, apply "Queued merge" (workflow skill, Review and merge) right
-   away. Remove the unit's worktree once `tf pr view <N>` shows it merged.
+   it died without a verdict. On `APPROVE` its report says what the merge step
+   did (code-reviewer section 6): it merged, or on GitHub with the ruleset
+   auto-merge was requested, by the review or by the fallback after exit 4.
+   For any PR the report does not show merged, apply "Queued merge" (workflow
+   skill, Review and merge) right away. A reviewer that stopped with the
+   verdict recorded but no merge armed or run (the fallback failed too)
+   leaves the PR unmerged: escalate it to @manager with the report. Remove
+   the unit's worktree once `tf pr view <N>` shows it merged.
    On `REQUEST_CHANGES`, resume the implementer with
    `SendMessage(to: "<its name>")` and the findings, wait for its fix, then
    spawn a new reviewer.

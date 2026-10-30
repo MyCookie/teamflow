@@ -62,8 +62,10 @@ duplicate that.
    undermines its independence):
    `Agent(subagent_type: "teamflow:code-reviewer", isolation: "worktree", description: "Review PR #<N>", prompt: "Review PR #<N>, branch <branch>, Issue #<issue or 'none'>.")`
 3. When it returns, remove the claim
-   (`tf pr release <N>`, also if it died without a verdict), then message @manager the verdict, whether it
-   merged, and its findings. On `REQUEST_CHANGES` the PR's author does the
+   (`tf pr release <N>`, also if it died without a verdict), then message
+   @manager the verdict, what its report says the merge step did (merged,
+   auto-merge requested, or neither; do not call a requested auto-merge
+   merged), and its findings. On `REQUEST_CHANGES` the PR's author does the
    rework; spawn a new reviewer only when @manager asks again. Never merge
    yourself and never report a verdict the reviewer did not give.
 

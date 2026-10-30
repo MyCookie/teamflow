@@ -192,7 +192,9 @@ After an `APPROVE`, the output and exit code of `tf pr review` say what is
 left to you. This list is the one statement of the rule:
 
 - Local mode (`tf mode`): `tf pr review` merges nothing. Run `tf pr merge <N>`.
-- GitHub, exit 0, and the output says auto-merge was requested: the teamflow
+- GitHub, exit 0, and the output says auto-merge was requested, or is gh's
+  own text and does not say it was not enabled (gh's output was not
+  observed): the teamflow
   ruleset requires both `gate` and `teamflow/code-review`, and the review
   armed auto-merge pinned to the head you approved. Run no merge command.
   GitHub merges once the required checks pass, or at once if the PR was

@@ -200,9 +200,16 @@ stop was observed.
   by default from v2.1.219. The manager stops at startup if it reads `1`
   (observed under `-p`, above).
 
-**Restart.** A restarted or resumed manager stops and asks what to do. It
-shows the stored goal, the iteration, its recorded PRs, `tf pr list` and the
-worktrees. Not run live, beyond the headless resume described below.
+**Restart.** The manager's rules for a process start, `--resume` included
+(`agents/manager.md`, Startup), in order: it first closes any still-open
+tracking Issue it recorded. Then, with no stored goal, it takes your goal as
+new (rule B). If its last message was a question to you, your message answers
+it and it carries on (rule C, which is how `claude -p --resume <session id>
+"yes"` works). If a non-auto-approved iteration has an unconfirmed release,
+it asks you to confirm or skip the update (rule U). Otherwise it stops and
+asks what to do, showing the goal, the iteration, the recorded PRs and
+releases, `tf pr list` and the worktrees (rule D). Not run live, beyond the
+headless resume described below.
 
 **Headless (`claude -p`).** Run on 2026-11-03 with Claude Code 2.1.308,
 from a checkout of this branch: `--plugin-dir` for the checkout and for
@@ -281,6 +288,7 @@ not (errors.md:5937). The cites are pages of the Claude Code docs at
 |---|---|
 | `agents/` | The manager, three leads, and eight workers, named `teamflow:<agent>` |
 | `skills/workflow/` | The pipeline rules every agent follows |
+| `hooks/` | The spawn hook (`hooks/check-spawn`, `hooks/hooks.json`): denies any spawn outside the spawn table, at every depth |
 | `bin/tf` | Issues and PRs in either mode; `tf -h` lists every command |
 | `bin/teamflow-config` | Print the repository's effective configuration |
 | `templates/` | `gate.sh` and the PR template for every repository; `ci.yml` and `branch-ruleset.json` for GitHub mode |

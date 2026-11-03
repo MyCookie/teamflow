@@ -1,0 +1,55 @@
+#!/usr/bin/env python3
+"""PreToolUse hook on the Agent tool: enforce the spawn table at every depth.
+
+`Agent(type)` lists in agent frontmatter bind only a main-thread agent, so a
+lead running as a subagent could spawn any type. This checks the caller's
+agent_type against tool_input.subagent_type instead.
+
+No output and exit 0 is "no decision": normal permission handling applies.
+A pair outside the table is denied; input we cannot trust blocks (exit 2).
+"""
+import json
+import sys
+
+PREFIX = "teamflow:"
+REVIEWERS = ("architect", "security", "quality", "docs", "simplicity")
+ALLOWED = {
+    "manager": ("research-lead", "impl-lead", "review-lead"),
+    "research-lead": ("researcher",),
+    "impl-lead": ("implementer", "code-reviewer"),
+    "review-lead": tuple(f"{r}-reviewer" for r in REVIEWERS) + ("code-reviewer",),
+}
+
+
+def main():
+    try:
+        event = json.load(sys.stdin)
+        if not isinstance(event, dict):
+            raise ValueError("not a JSON object")
+    except ValueError as e:
+        print(f"check-spawn: cannot read the hook input ({e}); blocking the spawn.",
+              file=sys.stderr)
+        return 2
+
+    caller = event.get("agent_type")
+    if not isinstance(caller, str) or not caller.startswith(PREFIX):
+        return 0
+
+    tool_input = event.get("tool_input")
+    requested = tool_input.get("subagent_type") if isinstance(tool_input, dict) else None
+    allowed = [PREFIX + t for t in ALLOWED.get(caller[len(PREFIX):], ())]
+    if isinstance(requested, str) and requested in allowed:
+        return 0
+
+    reason = (f"{caller} may not spawn {requested!r}. "
+              f"It may spawn: {', '.join(allowed) if allowed else 'nothing'}.")
+    print(json.dumps({"hookSpecificOutput": {
+        "hookEventName": "PreToolUse",
+        "permissionDecision": "deny",
+        "permissionDecisionReason": reason,
+    }}))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

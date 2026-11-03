@@ -18,12 +18,16 @@ author's say-so.**
 
 ## Teams
 
-| Session | Start with | Spawns | Job |
-|---|---|---|---|
-| manager | `claude --agent teamflow:manager --name manager` | nothing | Routes goals, runs handoffs, governs the review-implement loop |
-| research-lead | `claude --agent teamflow:research-lead --name research-lead` | `researcher` | Decomposes goals into Issues; implements nothing |
-| impl-lead | `claude --agent teamflow:impl-lead --name impl-lead` | `implementer`, `code-reviewer` | One worktree and PR per non-overlapping unit; owns each PR's review rounds to merge |
-| review-lead | `claude --agent teamflow:review-lead --name review-lead` | five specialist reviewers; `code-reviewer` in merge-review mode | Diff-reviews the cycle's merged PRs and files follow-up Issues |
+One session: `claude --agent teamflow:manager`, which spawns the three
+leads. A lead can run alone (`claude --agent teamflow:<lead>`) and then
+reports to the human.
+
+| Agent | Spawns | Job |
+|---|---|---|
+| manager | the three leads | Routes goals, runs handoffs, governs the review-implement loop |
+| research-lead | `researcher` | Decomposes goals into Issues; implements nothing |
+| impl-lead | `implementer`, `code-reviewer` | One worktree and PR per non-overlapping unit; owns each PR's review rounds to merge |
+| review-lead | five specialist reviewers; `code-reviewer` in merge-review mode | Diff-reviews the cycle's merged PRs and files follow-up Issues |
 
 ## Routing (manager)
 
@@ -37,10 +41,12 @@ author's say-so.**
 
 ## Handoffs
 
-- **Research → Implementation.** research-lead → @manager: tracking Issue
-  number, the numbers of the Issues filed, priority order. Manager →
-  @impl-lead: "Begin planning pass on Issues #a, #b, ... (plan exactly
-  these). Show the plan before spawning."
+- **Research → Implementation.** research-lead's final report to the manager:
+  tracking Issue number, the numbers of the Issues filed, priority order. The
+  manager spawns impl-lead with "Plan only. Begin planning pass on Issues #a,
+  #b, ... (plan exactly these). Return the plan table as your final message
+  and spawn nothing." After approval it spawns a fresh impl-lead with "Plan
+  approved. Execute exactly this plan:" plus the table verbatim.
   - *Auto-approval.* The one statement of the rule: the agent prompts point
     here. It applies when `teamflow-config teamflow_auto_approve` is `low`
     (the default; `none` turns it off, and then every plan waits for the
@@ -57,35 +63,34 @@ author's say-so.**
       change the classification: it carries no Issue and owns only
       `.claude-plugin/plugin.json`.
     - *Plan.* impl-lead always produces the plan table, with each unit's
-      owned files, and always sends it. The manager does not take
+      owned files, and always returns it. The manager does not take
       impl-lead's word for the classification: it reads every planned
       Issue's labels (`tf issue list`, or `tf issue view <n>`) and checks the
       owned files against the list above and the plan for a specialist or
       fallback agent. If it confirms all-low, it tells
-      the human the plan was auto-approved and why, and sends "Plan
-      approved. Begin spawning." without waiting. If a check fails, or an
+      the human the plan was auto-approved and why, and spawns the executing
+      impl-lead without waiting. If a check fails, or an
       Issue cannot be read, the plan waits for the human as under `none`.
     - *Loop and pause.* The loop rules are stated once, in the manager's
-      loop check (`agents/manager.md`): which all-low next iterations skip the
-      severity-threshold stop and the human question, and what still ends or
-      pauses the loop. The all-low test is the label conditions of *All-low
-      batch* above, on the cycle's new Issues.
+      loop check (`agents/manager.md`). Its all-low test is the label
+      conditions of *All-low batch* above, on the cycle's new Issues.
     - *Release.* For an auto-approved iteration the release line is
-      validated as usual and the release recorded, but the update question
-      moves from before the review to the end of the run, asked once. Agents
+      validated as usual and the release recorded, but the update
+      becomes a statement in the final report, not a question before the
+      review. Agents
       still never run the update. Escalations (disputes, five rounds,
       unmerged or escalated PRs, more high-severity Issues than resolved,
       ownership conflicts, critical security findings) reach the human as
       before (the pause above is the part of that which stops the loop).
-- **Implementation → Review.** impl-lead → @manager: PR URLs, Issues each
-  closes, each PR's final code-reviewer verdict. Manager → @review-lead:
-  "diff-review mode. Review PRs: [list]. File new Issues for anything that
+- **Implementation → Review.** impl-lead's final report to the manager: PR
+  URLs, Issues each closes, each PR's final code-reviewer verdict. The manager
+  spawns review-lead with "diff-review mode. Review PRs: [list]. File new Issues for anything that
   needs fixing."
 - **Release (end of Implementation).** The one statement of the release
   rule: the README ("Release") and the agent prompts point here.
   - *Why.* A merged change reaches the agents only after a version bump in
-    `.claude-plugin/plugin.json`, the human's update, and a full restart of
-    every session (`/reload-plugins` is untested for subagent definitions).
+    `.claude-plugin/plugin.json`, the human's update, and a fresh session
+    (`/reload-plugins` is untested for subagent definitions).
   - *Trigger.* A unit of the batch touches a shipped path (`agents/`,
     `skills/`, `bin/`, `hooks/`, `templates/`, `.claude-plugin/`). impl-lead
     decides at planning and checks again before it reports.
@@ -121,7 +126,7 @@ author's say-so.**
     tracked by any mechanism: they ship with the next release that happens.
     PRs merged through merge-review mode (outside the loop) get no automatic
     release step either.
-  - *Release line.* impl-lead ends its report to @manager with exactly one of:
+  - *Release line.* impl-lead ends its final report with exactly one of:
     "Release: <version>, merged in PR #N" (the release unit),
     "Release: <version>, carried by PR #N" (the carrying PR, merged),
     "No release: PR #N unmerged" (the unmerged PR that stopped it), or
@@ -130,15 +135,14 @@ author's say-so.**
     update follows. "No release: PR #N unmerged" applies only when no bump
     has merged.
   - *Update.* Whenever the line names a version, the manager asks the human to
-    run `claude plugin update teamflow@teamflow --scope project`, restart
-    every teamflow session, and confirm or skip before the review phase
+    run `claude plugin update teamflow@teamflow --scope project`, start a
+    fresh session, and confirm or skip before the review phase
     (for an auto-approved iteration, see Auto-approval).
     Agents never run the update: it changes the human's install.
-- **Review → Implementation (loop).** review-lead → @manager: the numbers
-  of the new Issues, highest severity, tracking Issue number, and whether
-  prior-cycle Issues remain unfixed. Manager runs the loop check; if
-  continuing, sends @impl-lead the new Issue numbers (the next iteration
-  plans exactly those); if stopping, reports to the human. Under
+- **Review → Implementation (loop).** review-lead's final report to the manager:
+  the numbers of the new Issues, highest severity, tracking Issue number, and
+  whether prior-cycle Issues remain unfixed. Manager runs the loop check; if
+  continuing, the next iteration plans exactly the new Issues; if stopping, reports to the human. Under
   `teamflow_auto_approve` `low` the loop check has exceptions (see
   Auto-approval).
 - **Review → Done.** Zero new Issues, or the loop check ends the loop: the manager reports
@@ -175,12 +179,9 @@ Every report, PR body, review and Issue states only what you observed.
   passed.
 
 ## Messaging
-- Address sessions by `@name`. Lead with status, then detail. Keep it short.
-- No progress updates mid-task unless blocked. Do not poll; use idle
-  notifications when waiting on a phase.
-- Leads and the manager hold `SendMessage` and `ListAgents`; subagents hold
-  `SendMessage` only. Sessions receive messages only when the project sets
-  `crossSessionInbound: accept` in `.claude/settings.json`.
+- Lead with status, then detail. Keep it short.
+- No progress updates mid-task unless blocked. Do not poll.
+- Leads and workers report by final message. Leads return after their workers where the harness makes them wait: interactive, and `-p` or the SDK with fork mode on. Teamflow does not support `-p` with fork mode off. A restarted run stops and asks.
 - A subagent reports with its final message: it calls `SubagentHandback`
   when it has that tool (async spawns, where plain final text is not
   delivered), otherwise it ends its turn. In a STOP case the blocker is its
@@ -191,10 +192,11 @@ Every report, PR body, review and Issue states only what you observed.
 - A teammate's final message arrives as an idle-notification `result`; an
   async subagent's (unnamed, or any `isolation: "worktree"` spawn) arrives as
   a `[Subagent hand-back]`. Leads answer with
-  `SendMessage(to: "<subagent name>")`, which resumes it.
+  `SendMessage(to: "<agent ID>")`, which resumes it.
 - Escalate to the human, not just your lead, when a file-ownership conflict
   cannot be resolved, a critical security problem is found, or a loop
-  iteration produces more high-severity Issues than it resolves.
+  iteration produces more high-severity Issues than it resolves: a lead puts
+  it first in its final report, and the manager relays it.
 
 ## Issues and PRs: `tf`
 Every agent reaches Issues and PRs through `tf` (on PATH from the plugin),
@@ -389,8 +391,8 @@ evidence.
   1. Run `tf pr gate <N>` once, with the long Bash timeout. When it returns
      is described in the exit-code paragraph of "Issues and PRs: `tf`".
      Exit 0: go to 2. Exit 1 (red), 2 (no `gate` check) or 3 (CI pending or
-     unreadable after the wait): the PR *stays unmerged*. Escalate to
-     @manager with the output; `tf pr view` and step 2 do not run.
+     unreadable after the wait): the PR *stays unmerged*. Escalate in
+     its final report to the manager, with the output; `tf pr view` and step 2 do not run.
   2. Run `tf pr view <N>`. `state: merged`: done, ignoring `merge state:`.
      Otherwise (open) read its `merge state:` line (GitHub's
      `mergeStateStatus`, lowercased).
@@ -404,8 +406,8 @@ evidence.
        not run).
      - Any other value: run `tf pr view <N>` once more, without waiting,
        because GitHub can merge a moment after the checks finish. Merged:
-       done. Still open: the PR *stays unmerged*. Escalate to @manager and
-       do not wait a second time. The escalation may be spurious, because
+       done. Still open: the PR *stays unmerged*. Escalate in its final
+       report to the manager and do not wait a second time. The escalation may be spurious, because
        the merge delay was not measured.
   Observed `merge state:` values (a reviewer ran `tf pr view` against real
   PRs): `blocked` on an open PR before it merged, `unknown` on a merged PR.

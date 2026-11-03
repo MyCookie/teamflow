@@ -174,9 +174,20 @@ checkout of this branch (details under Headless). Observed: the plugin loads
 from the checkout; with `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1` the manager
 stops at startup, names the variable and spawns nothing; the spawn hook
 allows manager to impl-lead and impl-lead to implementer, and denies
-review-lead to implementer. **Not run:** every interactive behaviour,
-including the subagent panel, and a headless run to a merged PR (see
-Headless).
+review-lead to implementer. One interactive run, with the human at the
+terminal in auto permission mode (Claude Code 2.1.308, a checkout at
+a554110), went from goal to a merged PR: the manager had a plan-only
+impl-lead return the plan and asked; after "yes, approved" it spawned a fresh
+impl-lead with the table verbatim; that lead spawned the implementer (depth
+2), which opened PR #246; the lead spawned a fresh code-reviewer in an
+isolated worktree, which recorded APPROVE on head 60d47f7; #246 merged (merge
+64e3f42 on `main`, local and origin), #240 closed, and the run stopped after
+implementation. The lead's report reached the manager only after the
+reviewer was done: it ended its turn while each worker ran and was resumed
+when the worker finished. That timing comes from hook events and is observed
+for one run only. **Not run:** the subagent panel, the update path,
+`CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS`, a restart, the review phase and the
+loop, and a headless run to a merged PR (see Headless).
 
 **Requirements.** The versions and defaults are from the Claude Code docs and
 the research on Issue #21, not tested with teamflow, except that the depth
@@ -211,15 +222,24 @@ from goal to merged PR is not verified.**
   `Bash(cd *)` and `Bash(git *)` in `--allowedTools`; it treats that as a
   safety check. The implementer's first command, `cd <worktree> && ...`, was
   refused, so nothing was implemented, reviewed or merged in that run. Only
-  an interactive session can approve such a command. Reviewing and merging
-  through the new pipeline has not been run.
+  an interactive session can approve such a command. In the interactive
+  auto-mode run above, the workers' `cd <worktree> && git ...` commands ran.
+  Headless runs stop at the first worker `cd`; an interactive session gets
+  past it.
 - **No stored state under `-p`.** `Write` of `.manager-state.json` was
   refused as "a sensitive file", even with `Write` in `--allowedTools`, and a
   path rule (`Write(.manager-state.json)`) was refused too ("you haven't
   granted it yet"). By decision on Issue #21, a headless run keeps its state
   only within a session and its `--resume`. A fresh headless restart has
   nothing stored, so the manager stops and asks with nothing to show.
-  Whether an interactive session's prompt for that write works is untested.
+  Interactively, in auto mode, `Write` of `.manager-state.json` failed three
+  times ("The server-side auto mode classifier gave no verdict (it skipped
+  this action) ... This is a hard failure"). It succeeded only after the
+  human switched the session to the default permission mode and approved the
+  write prompt (the switch is in the transcript; that it was done to approve
+  the write is inferred). So under auto mode, expect to switch or approve
+  each time the state file is written. In that run the manager held the
+  approved plan until the state file was written, its own judgement.
 - A plan that needs approval ends the run at the question. Continue with
   `claude -p --resume <session id> "<answer>"`. Observed: the manager sent
   impl-lead the plan-only brief, got the table back, declined auto-approval

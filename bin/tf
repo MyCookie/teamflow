@@ -726,14 +726,6 @@ def setup(forge_name, remote, apply):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
-    settings = root / ".claude" / "settings.json"
-    current = load_json(settings) if settings.is_file() else {}
-    if current.get("crossSessionInbound") == "accept":
-        print("ok: .claude/settings.json accepts cross-session messages")
-    else:
-        do("set crossSessionInbound: accept in .claude/settings.json",
-           lambda: write_json(settings, {**current, "crossSessionInbound": "accept"}))
-
     copies = [("gate.sh", "scripts/gate.sh"), ("pull_request_template.md", ".github/pull_request_template.md")]
     if forge_name == "github":
         copies.append(("ci.yml", ".github/workflows/gate.yml"))

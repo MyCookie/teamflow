@@ -45,11 +45,11 @@ class Setup(unittest.TestCase):
 
     def test_apply_creates_local_files_and_keeps_settings(self):
         (self.repo / ".claude").mkdir()
-        (self.repo / ".claude" / "settings.json").write_text(json.dumps({"env": {"X": "1"}}))
+        original = json.dumps({"env": {"X": "1"}})
+        (self.repo / ".claude" / "settings.json").write_text(original)
         (self.repo / ".gitignore").write_text(".env\n")
         self.tf("--apply")
-        settings = json.loads((self.repo / ".claude" / "settings.json").read_text())
-        self.assertEqual(settings, {"env": {"X": "1"}, "crossSessionInbound": "accept"})
+        self.assertEqual((self.repo / ".claude" / "settings.json").read_text(), original)  # byte-identical
         self.assertEqual((self.repo / "scripts" / "gate.sh").read_text(), (TEMPLATES / "gate.sh").read_text())
         self.assertTrue(os.access(self.repo / "scripts" / "gate.sh", os.X_OK))
         self.assertEqual((self.repo / ".github" / "pull_request_template.md").read_text(),
@@ -58,6 +58,10 @@ class Setup(unittest.TestCase):
         self.assertEqual(ignores, [".env", ".manager-state.json", ".claude/worktrees/"])
         self.assertEqual(json.loads((self.repo / ".claude" / "teamflow.json").read_text()), {"forge": "local"})
         self.assertFalse((self.repo / ".github" / "workflows").exists())  # github only
+
+    def test_apply_does_not_create_settings_json(self):
+        self.tf("--apply")
+        self.assertFalse((self.repo / ".claude" / "settings.json").exists())
 
     def test_never_commits(self):
         head = git("rev-parse", "HEAD", cwd=self.repo)
@@ -73,16 +77,9 @@ class Setup(unittest.TestCase):
         self.assertTrue((wt / "scripts" / "gate.sh").is_file())
         self.assertFalse((self.repo / "scripts").exists())
 
-    def test_invalid_json_is_a_setup_error_not_a_traceback(self):
-        (self.repo / ".claude").mkdir()
-        (self.repo / ".claude" / "settings.json").write_text("{nope")
-        out = self.tf(code=2)
-        self.assertIn("settings.json is not valid JSON", out)
-        self.assertNotIn("Traceback", out)
-
     def test_json_that_is_not_an_object_is_a_setup_error_not_a_traceback(self):
         (self.repo / ".claude").mkdir()
-        for name in ("settings.json", "teamflow.json"):
+        for name in ("teamflow.json",):
             (self.repo / ".claude" / name).write_text("[]")
             with self.subTest(file=name):
                 out = self.tf(code=2)
@@ -110,7 +107,6 @@ class Setup(unittest.TestCase):
         before = {p: (self.repo / p).read_text() for p in self.tree() if (self.repo / p).is_file()}
         out = self.tf("--apply")
         self.assertNotIn("create", out)
-        self.assertNotIn("set ", out)
         self.assertEqual({p: (self.repo / p).read_text() for p in before}, before)
 
     def test_existing_config_with_another_forge_is_reported_not_changed(self):

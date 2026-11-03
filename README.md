@@ -169,29 +169,65 @@ they spawn their workers. A lead can still be started alone, for example
 The workflow rules live in the `teamflow:workflow` skill. Subagents preload
 it; the manager and the leads load it as their first step.
 
-**Requirements.** Nothing here has been run live with the new prompts; the
-versions and defaults are from the Claude Code docs and the research on Issue
-#21, not tested with teamflow.
+**What was run.** On 2026-11-03, Claude Code 2.1.308, `claude -p` from a
+checkout of this branch (details under Headless). Observed: the plugin loads
+from the checkout; with `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1` the manager
+stops at startup, names the variable and spawns nothing; the spawn hook
+allows manager to impl-lead and impl-lead to implementer, and denies
+review-lead to implementer. **Not run:** every interactive behaviour,
+including the subagent panel, and a headless run to a merged PR (see
+Headless).
+
+**Requirements.** The versions and defaults are from the Claude Code docs and
+the research on Issue #21, not tested with teamflow, except that the depth
+stop was observed.
 
 - Claude Code 2.1.304 or later.
 - Leave fork mode on: do not set `CLAUDE_CODE_FORK_SUBAGENT=0`. It is on by
   default from v2.1.302.
 - Nesting needs `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` at 2 or more. It is 3
   by default from v2.1.219. The manager stops at startup if it reads `1`
-  (the stop is untested live).
+  (observed under `-p`, above).
 
 **Restart.** A restarted or resumed manager stops and asks what to do. It
 shows the stored goal, the iteration, its recorded PRs, `tf pr list` and the
-worktrees. Not run live.
+worktrees. Not run live, beyond the headless resume described below.
 
-**Headless (`claude -p`).** Not run live with teamflow.
+**Headless (`claude -p`).** Run on 2026-11-03 with Claude Code 2.1.308,
+from a checkout of this branch: `--plugin-dir` for the checkout and for
+`ponytail`, `PATH` with the checkout's `bin/` first, the prompt on stdin.
+The plan-then-resume path ran as far as the first worker. **A headless run
+from goal to merged PR is not verified.**
 
+- Load the checkout with its own `--plugin-dir` for `ponytail` as well, and
+  read `plugin_errors` in the `init` event. With only teamflow's
+  `--plugin-dir`, from another path, teamflow failed with
+  `dependency-unsatisfied` (`ponytail@ponytail`) and the run still exited 0
+  (seen in a clone on 2026-11-02).
 - Permission prompts can't be answered, so pass `--permission-mode` or
-  `--allowedTools`. `--allowedTools` must include `Write`, because the
-  manager writes its state file (`.manager-state.json`) with it. Not tested
-  with teamflow.
+  `--allowedTools`.
+- **Workers cannot work under `-p` as observed.** Claude Code refused a Bash
+  command that `cd`s into a directory and then runs git, even with
+  `Bash(cd *)` and `Bash(git *)` in `--allowedTools`; it treats that as a
+  safety check. The implementer's first command, `cd <worktree> && ...`, was
+  refused, so nothing was implemented, reviewed or merged in that run. Only
+  an interactive session can approve such a command. Reviewing and merging
+  through the new pipeline has not been run.
+- **No stored state under `-p`.** `Write` of `.manager-state.json` was
+  refused as "a sensitive file", even with `Write` in `--allowedTools`, and a
+  path rule (`Write(.manager-state.json)`) was refused too ("you haven't
+  granted it yet"). By decision on Issue #21, a headless run keeps its state
+  only within a session and its `--resume`. A fresh headless restart has
+  nothing stored, so the manager stops and asks with nothing to show.
+  Whether an interactive session's prompt for that write works is untested.
 - A plan that needs approval ends the run at the question. Continue with
-  `claude -p --resume <session id> "<answer>"`.
+  `claude -p --resume <session id> "<answer>"`. Observed: the manager sent
+  impl-lead the plan-only brief, got the table back, declined auto-approval
+  for an Issue with no `severity:` label, and ended on the question. On
+  `--resume "yes"` it spawned a fresh impl-lead with "Plan approved", and
+  that lead spawned the implementer. A lead spawned in the background gives
+  the manager a new turn when it finishes, so expect several `result` events
+  in stream-json.
 - Set `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS` above your longest expected lead
   run. The documented default, `600000`, ends the idle wait and drops the
   partial result, and `0` waits indefinitely. This is from the Claude Code

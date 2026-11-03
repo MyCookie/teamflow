@@ -51,7 +51,7 @@ step "shell scripts parse" shell_syntax
 # -- project checks ------------------------------------------------------------
 
 compile_python() {
-    python3 - bin/tf bin/teamflow-config tests/*.py <<'PY'
+    python3 - bin/tf bin/teamflow-config hooks/check-spawn tests/*.py <<'PY'
 import sys
 for path in sys.argv[1:]:
     compile(open(path, encoding="utf-8").read(), path, "exec")
@@ -61,7 +61,8 @@ step "python compiles" compile_python
 
 manifests_parse() {
     python3 -c 'import json, sys; [json.load(open(p)) for p in sys.argv[1:]]' \
-        .claude-plugin/plugin.json .claude-plugin/marketplace.json templates/branch-ruleset.json
+        .claude-plugin/plugin.json .claude-plugin/marketplace.json templates/branch-ruleset.json \
+        hooks/hooks.json
 }
 step "manifests parse" manifests_parse
 

@@ -213,12 +213,14 @@ headless resume described below.
 
 **Headless (`claude -p`).** Run on 2026-11-03 with Claude Code 2.1.308,
 from a checkout of this branch: `--plugin-dir` for the checkout and for
-`ponytail`, `PATH` with the checkout's `bin/` first, the prompt on stdin.
+`ponytail` (`mattpocock-skills` came from its user-scope install), `PATH` with the checkout's `bin/` first, the prompt on stdin.
 The plan-then-resume path ran as far as the first worker. **A headless run
 from goal to merged PR is not verified.**
 
-- Load the checkout with its own `--plugin-dir` for `ponytail` as well, and
-  read `plugin_errors` in the `init` event. With only teamflow's
+- Both dependencies, `ponytail` and `mattpocock-skills`, must load. In the
+  live runs only `ponytail` got its own `--plugin-dir`; `mattpocock-skills`
+  loaded from its user-scope install (observed). Read `plugin_errors` in the
+  `init` event. With only teamflow's
   `--plugin-dir`, from another path, teamflow failed with
   `dependency-unsatisfied` (`ponytail@ponytail`) and the run still exited 0
   (seen in a clone on 2026-11-02).
@@ -237,8 +239,9 @@ from goal to merged PR is not verified.**
   refused as "a sensitive file", even with `Write` in `--allowedTools`, and a
   path rule (`Write(.manager-state.json)`) was refused too ("you haven't
   granted it yet"). By decision on Issue #21, a headless run keeps its state
-  only within a session and its `--resume`. A fresh headless restart has
-  nothing stored, so the manager stops and asks with nothing to show.
+  only within a session and its `--resume`. A fresh headless run finds
+  nothing stored, so, with no stored goal (`agents/manager.md`, Startup rule
+  B), it treats its prompt as a new goal. Not run live.
   Interactively, in auto mode, `Write` of `.manager-state.json` failed three
   times ("The server-side auto mode classifier gave no verdict (it skipped
   this action) ... This is a hard failure"). It succeeded only after the

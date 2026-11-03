@@ -57,21 +57,23 @@ runs unenforced, with `tf` checking the gate and the verdict itself.
    only once `.github/workflows/gate.yml` is on the default branch; until
    then it prints `later: ...`. After the setup branch merges, update the
    main worktree and run `tf setup --forge github --apply` there once more.
-4. Start the leads (README, "Run").
+4. Start the manager (README, "Run").
 
 ## 4. Check that it works
 
 Each check is cheap and catches a different failure:
 
 1. `/agents` lists the teamflow agents.
-2. In the manager session, `ListAgents` shows the three leads. If not, the
-   sessions started from different directories, or `crossSessionInbound`
-   in `.claude/settings.json` is not `accept`.
+2. The manager starts without the depth stop. If it stops and says nesting
+   is off, `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` is `1`; set it to 2 or
+   more (README, "Run").
 3. `tf mode` prints the intended mode, and `teamflow-config` the intended
    loop bounds.
 4. Asked to edit a source file, the manager refuses.
-5. A trivial Issue (a typo) goes through the implementation path: impl-lead
-   shows a plan and waits, the implementer works in its own worktree and
+5. A trivial Issue (a typo) goes through the implementation path: the manager
+   shows impl-lead's plan and waits for your approval (unless
+   `teamflow_auto_approve` is `low` and the batch is all-low, which the
+   manager approves and tells you), the implementer works in its own worktree and
    opens the PR with `tf pr create`, and exactly one code-reviewer claims
    and reviews it, and the merge step follows (code-reviewer section 6).
 

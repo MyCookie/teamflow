@@ -29,8 +29,8 @@ claude --plugin-dir /path/to/teamflow \
 ## Set up a repository
 
 A plugin can't change project settings, so `tf setup` applies what it
-can't: cross-session messaging in `.claude/settings.json`, the gate and PR
-template, `.gitignore` entries and `.claude/teamflow.json`; with
+can't: the gate and PR template, `.gitignore` entries and
+`.claude/teamflow.json`; with
 `--forge github` also the CI workflow, labels, repository settings and the
 branch ruleset. It is a dry run unless given `--apply`, never overwrites a
 file, never commits, and is safe to run again. Prepare the setup on a
@@ -65,7 +65,7 @@ command on the normal path (decided on #227). Auto mode reads the command
 text, not what `tf` runs inside it, and whether it treats `tf pr review`
 differently from `tf pr merge` is untested. If auto
 mode stops your sessions, add the rule to an existing `permissions.allow` in
-the repository root where the leads start:
+the repository root where you start the manager:
 
 - `.claude/settings.json` is committed, so every worktree and collaborator
   gets the rule. It matches every `tf` subcommand, `tf pr merge` and `tf
@@ -157,17 +157,65 @@ falling back to local.
 
 ## Run
 
-One terminal per lead, from the repository root; start the manager last.
+One session, started from the repository root:
 
 ```bash
-claude --agent teamflow:research-lead --name research-lead
-claude --agent teamflow:impl-lead     --name impl-lead
-claude --agent teamflow:review-lead   --name review-lead
-claude --agent teamflow:manager       --name manager     # then state your goal
+claude --agent teamflow:manager     # then state your goal
 ```
 
+The manager spawns research-lead, impl-lead and review-lead as subagents, and
+they spawn their workers. A lead can still be started alone, for example
+`claude --agent teamflow:impl-lead`, and then reports to you in that session.
 The workflow rules live in the `teamflow:workflow` skill. Subagents preload
-it; leads load it as their first step.
+it; the manager and the leads load it as their first step.
+
+**Requirements.** Nothing here has been run live with the new prompts; the
+versions and defaults are from the Claude Code docs and the research on Issue
+#21, not tested with teamflow.
+
+- Claude Code 2.1.304 or later.
+- Leave fork mode on: do not set `CLAUDE_CODE_FORK_SUBAGENT=0`. It is on by
+  default from v2.1.302.
+- Nesting needs `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` at 2 or more. It is 3
+  by default from v2.1.219. The manager stops at startup if it reads `1`
+  (the stop is untested live).
+
+**Restart.** A restarted or resumed manager stops and asks what to do. It
+shows the stored goal, the iteration, its recorded PRs, `tf pr list` and the
+worktrees. Not run live.
+
+**Headless (`claude -p`).** Not run live with teamflow.
+
+- Permission prompts can't be answered, so pass `--permission-mode` or
+  `--allowedTools`.
+- A plan that needs approval ends the run at the question. Continue with
+  `claude -p --resume <session id> "<answer>"`.
+- Set `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS` above your longest expected lead
+  run. The documented default, `600000`, ends the idle wait and drops the
+  partial result, and `0` waits indefinitely. This is from the Claude Code
+  docs, not tested with teamflow.
+- Leads return after their workers where the harness makes them wait:
+  interactive, and `-p` or the SDK with fork mode on. Teamflow does not
+  support `-p` with fork mode off. A restarted run stops and asks.
+
+**After an update,** start a fresh `claude --agent teamflow:manager`; never
+`--resume` the pre-update session. The resumed session keeps the old prompt
+in its history while the new agents and `tf` load. That is from the Claude
+Code docs, untested.
+
+**Agent teams.** `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` is not recommended
+and is untested with teamflow. If it is on and the leads behave differently,
+set it to `0`.
+
+**Settings file.** After a `-p` run that behaves as if a setting is missing,
+run `claude doctor` to see what it dropped. Under `-p`, a broken
+`.claude/settings.json` gets no dialog: Claude Code skips it and continues
+(settings.md:206). A managed settings document that cannot be parsed as a
+JSON object instead stops Claude Code at startup, under `-p` too
+(errors.md:5921, 5935). A schema problem in a parseable managed document does
+not (errors.md:5937). The cites are pages of the Claude Code docs at
+`https://code.claude.com/docs/en/`. `tf setup` no longer checks
+`.claude/settings.json`; this line replaces that check.
 
 ## What's in the plugin
 
@@ -197,10 +245,11 @@ What follows is what a human does.
   and nowhere else. It must stay: without it `claude plugin validate
   --strict` failed on a scratch copy.
 - **Reaching the agents.** When the manager reports a release, run
-  `claude plugin update teamflow@teamflow --scope project`, then fully
-  restart every teamflow session. Agents never run the update, since it
-  changes your install. The manager asks you to confirm or skip it before
-  review, or once at the end of an auto-approved all-low run.
+  `claude plugin update teamflow@teamflow --scope project`, then start a
+  fresh manager session. Agents never run the update, since it changes your
+  install. For an auto-approved run the manager states the update in its
+  final report and waits for no answer. Otherwise it asks you to confirm or
+  skip it before review.
 - **Not tested.** Not verified here: these points come from the Claude Code
   docs, which a research-lead session read and this README did not re-check
   (the manifest's `version` overriding the marketplace entry's, the cached
@@ -208,7 +257,7 @@ What follows is what a human does.
   for a marketplace, and the update command's behaviour), and from one
   scratch-copy run of `claude plugin validate --strict` without `version`.
   Whether `/reload-plugins` refreshes subagent definitions is untested, so a
-  full restart is required. No live impl-lead or manager has run the release
+  fresh session is required. No live impl-lead or manager has run the release
   sequencing, the four release-line forms (a version line can also accompany
   a named unmerged PR), the manager's check of the line, or the main-worktree
   update. The Queued merge procedure (`tf pr gate`, then `tf pr view`,

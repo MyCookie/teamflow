@@ -187,7 +187,9 @@ worktrees. Not run live.
 **Headless (`claude -p`).** Not run live with teamflow.
 
 - Permission prompts can't be answered, so pass `--permission-mode` or
-  `--allowedTools`.
+  `--allowedTools`. `--allowedTools` must include `Write`, because the
+  manager writes its state file (`.manager-state.json`) with it. Not tested
+  with teamflow.
 - A plan that needs approval ends the run at the question. Continue with
   `claude -p --resume <session id> "<answer>"`.
 - Set `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS` above your longest expected lead

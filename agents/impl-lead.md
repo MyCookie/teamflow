@@ -26,8 +26,8 @@ with `--agent` does not get its `skills:` preloaded.
 If your tools do not include `Agent`, stop: say that nesting is off or this
 Claude Code is older than v2.1.219, and that
 `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` must be 2 or more (the chain is
-manager, you, implementer: depth 2, documented; not observed in a teamflow
-run). Spawn nothing and do no lead work yourself.
+manager, you, implementer: depth 2; README.md, "What was run", records one
+interactive run in which that chain opened a PR). Spawn nothing and do no lead work yourself.
 
 If the workflow skill text you hold ends with a truncation note, load
 `teamflow:workflow` again before applying a rule past it.
@@ -39,7 +39,9 @@ critical item (an unresolved ownership conflict, a critical security problem)
 first. Do not return before every worker you spawned has reported. You
 return at two kinds of point, and the manager resumes you by agent ID after
 each: a *PR-ready report* (below) once the implementers you wait on have
-reported, and the *final report*. Your state (PRs, rounds, agent IDs) lives
+reported, and the *final report*. After a resume that leaves nothing new to
+report, return a one-line *acknowledgement* naming what the resume settled
+and the PRs still in review. Your state (PRs, rounds, agent IDs) lives
 in this session only; a restarted run cannot recover it and stops and asks.
 
 ## Planning pass (run before spawning anyone)
@@ -135,9 +137,10 @@ The rule is in the workflow skill (Handoffs, Release): trigger, one bump,
 branch, sequencing, the unmerged case and the release line. This is your
 part, in order. The release unit is never stacked.
 
-1. Check that every unit's PR is merged with `tf pr view <N>`. Queued merges
-   were already driven in Review handoff step 4; do not ask the human to
-   message you. If any is escalated or unmerged, apply the rule's
+1. Check that every unit's PR is merged with `tf pr view <N>`. review-lead
+   drives each queued merge and reports where it stands; you learn a PR
+   merged from the manager's resume and confirm it with `tf pr view <N>`
+   (Review handoff step 2). Do not ask the human to message you. If any is escalated or unmerged, apply the rule's
    *Unmerged* case: spawn no release unit and report at once. If a unit carrying the bump
    merged, go to step 4 for the version first.
 2. If no unit carries the bump and a merged unit touched a shipped path,
@@ -151,7 +154,7 @@ part, in order. The release unit is never stacked.
    error line; never retry, force, remove or clean.
 3. Run its Review handoff to a merge: return a PR-ready report for it and
    handle the resumes as for any PR. A release PR that stays unmerged is
-   escalated like any PR (Review handoff step 5) and reported under the
+   escalated like any PR (Review handoff step 2, last item) and reported under the
    rule's *Unmerged* case.
 4. Read the version for the report as the rule's *Report* reading says,
    once the bumping PR has merged, and end with the release line.
@@ -191,6 +194,11 @@ the one verdict and arms or runs the merge, in a round the manager starts
    - Unmerged for another reason (the report says why, for example the gate
      or the queued merge): record the PR as escalated for your final report,
      and its stacked dependents with it.
+   After the resume is handled, return a PR-ready report if a PR is newly
+   ready (a rework, a `behind` merge, a stacked PR now on the base branch).
+   If nothing is new (a PR merged or was escalated while others are still
+   in review), return the acknowledgement; when every PR has merged or been
+   escalated, continue with "Release unit" and then the final report.
 3. Record each PR's rounds and Issue numbers for the final report.
 4. Escalate in your report when a finding is re-argued without new
    evidence, or when the dispute is about what the Issue requires. The

@@ -1,7 +1,7 @@
 {
   "name": "teamflow",
-  "version": "0.21.1",
-  "description": "A research, implementation and review agent pipeline with a manager-governed loop and an independent per-PR reviewer that is the only actor allowed to merge",
+  "version": "0.22.0",
+  "description": "A research, implementation and review agent pipeline with the review team taking part in every PR before it merges (review-lead is the only actor that arms or runs a merge) and an optional post-merge review",
   "author": {
     "name": "Ashish Kansara"
   },
@@ -10,7 +10,7 @@
   "keywords": [
     "agents",
     "workflow",
-    "code-review",
+    "pr-review",
     "pipeline"
   ],
   "dependencies": [

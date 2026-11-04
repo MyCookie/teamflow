@@ -2,9 +2,12 @@
 
 A Claude Code plugin that runs a three-team agent pipeline in any repository:
 research turns goals into Issues, implementation works them in isolated
-worktrees, and review files follow-up Issues, under a manager that governs
-the review-implement loop. Every PR is reviewed by a fresh, independent
-`code-reviewer`, the only actor that arms or runs a merge.
+worktrees, and review takes part in every PR before it merges, under a
+manager that routes each handoff. Every PR is reviewed by the review team: a
+fresh review-lead runs five fresh specialist reviewers, records the one
+verdict, and is the only actor that arms or runs a merge. A post-merge
+review that files follow-up Issues is optional and runs only when you ask
+for it.
 
 ## Install
 
@@ -61,7 +64,8 @@ times, and `tf pr merge <N>` with more on the same line (for example `; echo
 established cause. The reasons and rule syntax were not checked against
 Claude Code's docs. In GitHub mode with the ruleset, `tf pr review
 --verdict APPROVE` now arms auto-merge itself, so the reviewer runs no merge
-command on the normal path (decided on #227). Auto mode reads the command
+command on the normal path (decided on #227; the merging actor is now
+review-lead, whose prompt carries the same steps, read, not run). Auto mode reads the command
 text, not what `tf` runs inside it, and whether it treats `tf pr review`
 differently from `tf pr merge` is untested. If auto
 mode stops your sessions, add the rule to an existing `permissions.allow` in
@@ -101,9 +105,12 @@ so every `tf` command that reads the config, exit 2 with `unknown key '...'`
 (the test covers `teamflow-config` directly); delete the key. `tf setup` is the
 exception: it does not call `teamflow-config`, reading only `forge` from the
 file, so it does not exit 2 on a removed key (it does exit 2 on invalid JSON).
-No iteration cap remains, by a human decision. When a loop ends or pauses is
-in the manager's loop check (`agents/manager.md`); these loop rules have not
-been run live.
+No iteration cap remains, by a human decision. Each PR has its own loop
+(implement, then review and rework rounds until it merges or is escalated at
+five rounds); the review-implement loop runs only after a post-merge review
+you asked for. When that loop ends or pauses is in the manager's loop check
+(`agents/manager.md`); these rules have not been run live. Post-merge review
+has no config key: it is off unless you ask (#258 D6).
 
 `tf` and `teamflow-config` read the file from the main worktree, which must
 stay on the base branch (`tf` stops otherwise; `tf setup` is the exception,
@@ -117,21 +124,21 @@ modes, set by `forge` in `.claude/teamflow.json`:
 
 - **`local` (default).** No forge and no `gh` needed. Issues and PRs are
   records in the git common directory (`.git/teamflow/`), shared by every
-  worktree and never committed or pushed. The code-reviewer runs the gate and
+  worktree and never committed or pushed. review-lead runs the gate and
   merges into `main` itself with `tf pr merge`. Separation of reviewer and author is a process
   rule.
 - **`github` (opt-in).** Issues and PRs live on GitHub. The local
   duplicates switch off: a `teamflow/code-review` commit status on the
-  reviewed head replaces review labels, CI's `gate` check replaces the
-  reviewer's second gate run. With the teamflow branch ruleset, GitHub
-  enforces both: the reviewer's `tf pr review --verdict APPROVE` arms
+  reviewed head replaces review labels, CI's `gate` check replaces
+  review-lead's second gate run. With the teamflow branch ruleset, GitHub
+  enforces both: review-lead's `tf pr review --verdict APPROVE` arms
   auto-merge, pinned to the reviewed head, and GitHub merges once they pass
   (at once if the PR is already clean). `tf pr merge` is then only the
   fallback, when arming fails (`tf pr review` exits 4 with the verdict
   recorded). `tf pr review` arms nothing for a stacked PR or a repository
   whose rules do not name both `gate` and `teamflow/code-review`, and says so.
   Without such a ruleset (none, for example a private repository on a free
-  plan; one lacking either context; or one `tf` cannot read), the reviewer runs
+  plan; one lacking either context; or one `tf` cannot read), review-lead runs
   `tf pr merge`, which never arms auto-merge there: it waits for the `gate`
   check, checks it and the verdict itself, and merges directly: the same
   process control as local mode. Another required check (say `build`) does not
@@ -164,8 +171,17 @@ claude --agent teamflow:manager     # then state your goal
 ```
 
 The manager spawns research-lead, impl-lead and review-lead as subagents, and
-they spawn their workers. A lead can still be started alone, for example
-`claude --agent teamflow:impl-lead`, and then reports to you in that session.
+research-lead and impl-lead spawn their workers; review-lead spawns the five
+specialists. Every handoff runs through the manager, including each PR's
+review rounds: impl-lead opens a PR and returns, the manager spawns a fresh
+review-lead for it, and the manager resumes impl-lead with the verdict.
+A PR is reviewed and merged before the batch is reported; a
+post-merge review (the manager's route "Review what we just built") runs only
+if you ask. A lead can still be started alone, for example
+`claude --agent teamflow:impl-lead`, and then reports to you in that session;
+a lone impl-lead has no manager to hand its PRs to, so it reports them open
+and unreviewed. Per-PR review and the optional loop are read in
+`skills/workflow/SKILL.md` and `agents/`, not run live (see **What was run**).
 The workflow rules live in the `teamflow:workflow` skill. Subagents preload
 it; the manager and the leads load it as their first step.
 
@@ -180,14 +196,21 @@ a554110), went from goal to a merged PR: the manager had a plan-only
 impl-lead return the plan and asked; after "yes, approved" it spawned a fresh
 impl-lead with the table verbatim; that lead spawned the implementer (depth
 2), which opened PR #246; the lead spawned a fresh code-reviewer in an
-isolated worktree, which recorded APPROVE on head 60d47f7; #246 merged (merge
+isolated worktree (that was the pipeline before per-PR review moved to the
+review team; `teamflow:code-reviewer` is now archived in
+`archive/code-reviewer.md` and no longer spawned), which recorded APPROVE on head 60d47f7; #246 merged (merge
 64e3f42 on `main`, local and origin), #240 closed, and the run stopped after
 implementation. The lead's report reached the manager only after the
 reviewer was done: it ended its turn while each worker ran and was resumed
 when the worker finished. That timing comes from hook events and is observed
 for one run only. **Not run:** the subagent panel, the update path,
-`CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS`, a restart, the review phase and the
-loop, and a headless run to a merged PR (see Headless).
+`CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS`, a restart, a per-PR round with the
+review team (review-lead and its five specialists, as merged on `main`; only
+the old code-reviewer path above ran), a post-merge review and its loop, a
+three-layer spawn chain (the design needs none), and a headless run to a
+merged PR (see Headless). The spawn hook's table was read in
+`hooks/check-spawn` for the new layout; the observed hook allows above are
+from before it.
 
 **Requirements.** The versions and defaults are from the Claude Code docs and
 the research on Issue #21, not tested with teamflow, except that the depth
@@ -196,9 +219,12 @@ stop was observed.
 - Claude Code 2.1.304 or later.
 - Leave fork mode on: do not set `CLAUDE_CODE_FORK_SUBAGENT=0`. It is on by
   default from v2.1.302.
-- Nesting needs `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` at 2 or more. It is 3
-  by default from v2.1.219. The manager stops at startup if it reads `1`
-  (observed under `-p`, above).
+- Nesting needs `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` at 2 or more: the
+  manager, a lead, its worker. No handoff needs a third layer, because every
+  handoff runs through the manager (`skills/workflow/SKILL.md`, Teams, *Spawn
+  depth*); a three-layer chain was never run (the spike, #259, was closed as
+  not needed). The variable is 3 by default from v2.1.219. The manager stops
+  at startup if it reads `1` (observed under `-p`, above).
 
 **Restart.** The manager's rules for a process start, `--resume` included
 (`agents/manager.md`, Startup), in order: it first closes any still-open
@@ -290,7 +316,8 @@ not (errors.md:5937). The cites are pages of the Claude Code docs at
 
 | Path | What it is |
 |---|---|
-| `agents/` | The manager, three leads, and eight workers, named `teamflow:<agent>` |
+| `agents/` | The manager, three leads, and seven workers (researcher, implementer, five specialist reviewers), named `teamflow:<agent>` |
+| `archive/` | `code-reviewer.md`, retired from the pipeline (#258 D3), kept outside `agents/`, so not among the agents the plugin ships (not checked by loading the plugin) |
 | `skills/workflow/` | The pipeline rules every agent follows |
 | `hooks/` | The spawn hook (`hooks/check-spawn`, `hooks/hooks.json`): denies any spawn outside the spawn table, at every depth |
 | `bin/tf` | Issues and PRs in either mode; `tf -h` lists every command |

@@ -555,6 +555,21 @@ class GitHubFlow(unittest.TestCase):
         self.assertIn("gate", result.stderr)
         self.assertIn("did not finish", result.stderr)
 
+    def test_gate_gives_up_with_the_pending_checks_fields_and_the_head(self):
+        # #254: a pending `gate` at the deadline must be diagnosable (is the run really running, which head)
+        head = self.open_pr()
+        pending = {"name": "gate", "bucket": "pending", "state": "IN_PROGRESS", "workflow": "gate",
+                   "event": "pull_request", "link": "https://example.test/runs/1/job/2",
+                   "startedAt": "2026-11-04T17:46:20Z", "completedAt": "0001-01-01T00:00:00Z"}
+        state = self.gh_state()
+        state["checks"][head], state["required"] = [pending], False
+        self.state.write_text(json.dumps(state))
+        result = self.tf("pr", "gate", "2", cwd=self.rev, env={"TF_GATE_WAIT": "0.1", "TF_GATE_POLL": "0.01"})
+        self.assertEqual(result.returncode, 3, result.stdout + result.stderr)  # still a STOP
+        self.assertIn(f"head: {head}", result.stdout)
+        for value in ("IN_PROGRESS", "pull_request", "https://example.test/runs/1/job/2", "2026-11-04T17:46:20Z"):
+            self.assertIn(value, result.stdout)
+
     def test_gate_retries_a_failed_or_empty_poll(self):
         head = self.open_pr()
         wait = {"TF_GATE_WAIT": "30", "TF_GATE_POLL": "0.01"}

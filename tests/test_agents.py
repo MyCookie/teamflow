@@ -79,6 +79,17 @@ class AgentDisallowedTools(unittest.TestCase):
                 self.assertTrue(has_bash(f.read_text()))
 
 
+class WriteNeedsRead(unittest.TestCase):
+    """Write refuses to overwrite a file not yet read, so an agent with Write needs Read (#250)."""
+
+    def test_every_agent_with_write_also_has_read(self):
+        for f in sorted(AGENTS.glob("*.md")):
+            tools = field(f.read_text(), "tools")
+            if re.search(r"\bWrite\b", tools):
+                with self.subTest(agent=f.name):
+                    self.assertRegex(tools, r"\bRead\b")
+
+
 class QuotingCheck(unittest.TestCase):
     """scripts/gate.sh quoting_is_safe: flags unsafe tf command lines, not prose (#14)."""
 

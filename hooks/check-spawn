@@ -16,8 +16,8 @@ REVIEWERS = ("architect", "security", "quality", "docs", "simplicity")
 ALLOWED = {
     "manager": ("research-lead", "impl-lead", "review-lead"),
     "research-lead": ("researcher",),
-    "impl-lead": ("implementer", "code-reviewer"),
-    "review-lead": tuple(f"{r}-reviewer" for r in REVIEWERS) + ("code-reviewer",),
+    "impl-lead": ("implementer",),
+    "review-lead": tuple(f"{r}-reviewer" for r in REVIEWERS),
 }
 
 

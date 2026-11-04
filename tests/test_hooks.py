@@ -20,11 +20,13 @@ REVIEWERS = ["architect", "security", "quality", "docs", "simplicity"]
 ALLOWED = {
     "manager": ["research-lead", "impl-lead", "review-lead"],
     "research-lead": ["researcher"],
-    "impl-lead": ["implementer", "code-reviewer"],
-    "review-lead": [f"{r}-reviewer" for r in REVIEWERS] + ["code-reviewer"],
+    "impl-lead": ["implementer"],
+    "review-lead": [f"{r}-reviewer" for r in REVIEWERS],
 }
+# code-reviewer is retired (#258 D3) and so absent from ALLOWED; it must stay denied.
 EVERY_TYPE = {t for types in ALLOWED.values() for t in types} | {
     "manager", "research-lead", "impl-lead", "review-lead", "implementer",
+    "code-reviewer",
 }
 
 
@@ -78,7 +80,15 @@ class SpawnHook(unittest.TestCase):
 
     def test_denial_names_what_the_caller_may_spawn(self):
         self.assertDenied(spawn("teamflow:impl-lead", "teamflow:researcher"),
-                          "teamflow:implementer", "teamflow:code-reviewer")
+                          "teamflow:implementer")
+
+    def test_retired_code_reviewer_is_spawned_by_no_one(self):
+        # #258 D1 (c) and D3: review-lead is reached through the manager, and
+        # code-reviewer is archived, so neither lead spawns them.
+        for caller in ("manager", "impl-lead", "review-lead"):
+            with self.subTest(caller=caller):
+                self.assertDenied(spawn(f"teamflow:{caller}", "teamflow:code-reviewer"))
+        self.assertDenied(spawn("teamflow:impl-lead", "teamflow:review-lead"))
 
     def test_missing_or_non_string_subagent_type_is_denied(self):
         self.assertDenied(spawn("teamflow:research-lead"), "teamflow:research-lead")

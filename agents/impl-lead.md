@@ -5,11 +5,12 @@ description: >
   research team or the review team — decomposes them into non-overlapping
   file-ownership units, returns the plan to the manager for approval, then
   spawns one implementation teammate per independent unit in its own git worktree.
-  Owns each PR's code-reviewer rounds through to merge. Reports the PRs and
-  their verdicts to the manager in its final report.
+  Returns each opened PR to the manager as ready for review (the review team
+  reviews and merges it, in rounds run by the manager), reworks it when asked,
+  and reports the PRs, verdicts and release to the manager in its final report.
 model: claude-opus-5-5
 effort: high
-tools: Bash, Skill, SendMessage, Agent(teamflow:implementer, teamflow:code-reviewer)
+tools: Bash, Skill, SendMessage, Agent(teamflow:implementer)
 skills: teamflow:workflow
 maxTurns: 300
 ---
@@ -24,8 +25,9 @@ with `--agent` does not get its `skills:` preloaded.
 
 If your tools do not include `Agent`, stop: say that nesting is off or this
 Claude Code is older than v2.1.219, and that
-`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` must be 2 or more. Spawn nothing and
-do no lead work yourself.
+`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` must be 2 or more (the chain is
+manager, you, implementer: depth 2, documented; not observed in a teamflow
+run). Spawn nothing and do no lead work yourself.
 
 If the workflow skill text you hold ends with a truncation note, load
 `teamflow:workflow` again before applying a rule past it.
@@ -34,7 +36,11 @@ Your brief comes from the manager, which reads your final message as your
 report. Started alone with `claude --agent teamflow:impl-lead`, you report to
 the human in your session instead. Hold everything for that final report, a
 critical item (an unresolved ownership conflict, a critical security problem)
-first. Do not return before every worker you spawned has reported.
+first. Do not return before every worker you spawned has reported. You
+return at two kinds of point, and the manager resumes you by agent ID after
+each: a *PR-ready report* (below) once the implementers you wait on have
+reported, and the *final report*. Your state (PRs, rounds, agent IDs) lives
+in this session only; a restarted run cannot recover it and stops and asks.
 
 ## Planning pass (run before spawning anyone)
 
@@ -95,8 +101,8 @@ error line; never retry, force, remove or clean.
 Its PR targets the dependency's branch (the implementer uses the base branch
 from its brief), so it shows only the dependent unit's own diff. Review in
 dependency order: when the dependency merges, the stacked PR is retargeted
-to the base branch (by `tf` locally, by GitHub otherwise). Only then spawn
-its reviewer (see Review handoff).
+to the base branch (by `tf` locally, by GitHub otherwise). Only then
+report it ready for review (see Review handoff).
 
 ## When all teammates report done
 
@@ -111,12 +117,14 @@ dependency) stops, and so do the units that depend on it; carry on with the
 others.
 
 1. Verify each PR references its Issues correctly, then run the Review
-   handoff for it. A PR is done when its `code-reviewer` round ends in
-   `APPROVE` and `tf pr view <N>` shows it merged, not when it is opened or
-   its auto-merge is queued (Review handoff step 4 drives a queued merge to
-   that point). Then run "Release unit".
+   handoff for it: return the *PR-ready report* (below). A PR is done when
+   its review round ended in `APPROVE` and `tf pr view <N>` shows it merged,
+   not when it is opened or its auto-merge is queued. Then run "Release unit".
 2. Make the final report: the PRs, the Issues each closes, each PR's final
-   verdict, any that failed or were escalated, blocked units, and every
+   verdict and round count, how many non-blocking findings its verdict
+   comment holds (not worked on), the numbers of Issues filed for problems
+   outside a PR's diff (from review-lead's reports, as the manager passed
+   them), any that failed or were escalated, blocked units, and every
    escalation, a critical item first. End with the release line the workflow
    rules define (Handoffs, Release).
 3. Clean up per the workflow rules, "Cleanup".
@@ -141,49 +149,53 @@ part, in order. The release unit is never stacked.
    ```
    If `git worktree add -b` fails, stop that unit as Blocked and report git's
    error line; never retry, force, remove or clean.
-3. Run its Review handoff to a merge. A release PR that stays unmerged is
-   escalated like any PR (Review handoff step 6) and reported under the
+3. Run its Review handoff to a merge: return a PR-ready report for it and
+   handle the resumes as for any PR. A release PR that stays unmerged is
+   escalated like any PR (Review handoff step 5) and reported under the
    rule's *Unmerged* case.
 4. Read the version for the report as the rule's *Report* reading says,
    once the bumping PR has merged, and end with the release line.
 
-## Review handoff (you own per-PR review rounds)
+## Review handoff (the review team reviews; you rework and report)
 
 The implementer cannot spawn a reviewer and never merges or arms auto-merge
-(`tf pr create` arms nothing). For each PR:
+(`tf pr create` arms nothing). You do not review, claim, release or merge
+either, and you spawn no reviewer: review-lead alone claims the PR, records
+the one verdict and arms or runs the merge, in a round the manager starts
+(workflow rules, Handoffs, the PR loop; Review and merge). Your part:
 
-1. Check the base: `tf pr view <N>`. If it does not target the base
-   branch, it is stacked on an unmerged dependency. Review that dependency
-   first; its queued merge is driven in step 4. Once it merged, GitHub has
-   retargeted the PR. If the dependency is escalated or stays unmerged,
-   escalate this PR too and spawn no reviewer.
-2. Claim it: `tf pr claim <N>`. If it refuses, another reviewer holds it;
-   do not spawn a second.
-3. Spawn a fresh reviewer for each round, never reusing one:
-   `Agent(subagent_type: "teamflow:code-reviewer", isolation: "worktree", description: "Review PR #<N>", prompt: "Review PR #<N>, branch <branch>, Issue #<issue>.")`
-   Keep the prompt to those facts. Naming risks or suggesting what to check
-   undermines the reviewer's independence.
-4. When it returns, release the claim first: `tf pr release <N>`, also if
-   it died without a verdict. On `APPROVE` its report says what the merge step
-   did (code-reviewer section 6): it merged, or on GitHub with the ruleset
-   auto-merge was requested, by the review or by the fallback after exit 4.
-   For any PR the report does not show merged, apply "Queued merge" (workflow
-   skill, Review and merge) right away. A reviewer that stopped with the
-   verdict recorded but no merge armed or run (the fallback failed too)
-   leaves the PR unmerged: escalate it in your final report with the
-   reviewer's report. Remove
-   the unit's worktree once `tf pr view <N>` shows it merged.
-   On `REQUEST_CHANGES`, resume the implementer with
-   `SendMessage(to: "<its agent ID>")` and the findings, wait for its fix, then
-   spawn a new reviewer.
-5. An approved PR whose `merge state:` reads `behind` (Queued merge step 2):
-   resume the implementer to merge the base branch into its branch (never
-   rebase or force-push), then run a new round; the old verdict was for the
-   old head. The new round's `APPROVE` runs step 4 again.
-6. Stop and escalate in your final report at five rounds, when a finding is
-   re-argued without new evidence, or when the dispute is about what the
-   Issue requires. Never merge a PR yourself and never report a verdict the
-   reviewer did not give.
+1. **PR-ready report.** When every implementer you spawned has reported, run
+   `tf pr view <N>` for each PR. Return as your message to the manager, for
+   each PR open and ready: its number, branch and the Issues it closes. A
+   PR whose base is not the base branch is stacked on an unmerged
+   dependency: name that dependency and do not list the PR as ready; list it
+   once the dependency has merged and `tf pr view <N>` shows the base
+   branch. If the dependency is escalated or stays unmerged, escalate this
+   PR too. Do not claim, and do not name risks or what to check.
+2. **After every round** the manager resumes you with the PR number, the
+   verdict and review-lead's report (verdict and head SHA, the merge state,
+   the blocking findings, the count of non-blocking ones, the Issues filed
+   outside the diff). Check the merge yourself with `tf pr view <N>`; never
+   report a merge or a verdict the report does not show.
+   - `APPROVE` and `state: merged`: the PR is done. Remove its worktree. If
+     other PRs now qualify, or every PR has merged, continue with step 1 for
+     them or with "Release unit".
+   - `REQUEST_CHANGES`: resume the implementer with
+     `SendMessage(to: "<its agent ID>")` and the blocking findings, wait for
+     its fix (on GitHub it pushes it), then return a new PR-ready report for
+     that PR. The manager starts the next round with a fresh review-lead.
+   - `merge state: behind` (workflow rules, Review and merge, *Queued
+     merge* step 2): resume the implementer to merge the base branch into
+     its branch (never rebase or force-push), then return a new PR-ready
+     report; the old verdict was for the old head.
+   - Unmerged for another reason (the report says why, for example the gate
+     or the queued merge): record the PR as escalated for your final report,
+     and its stacked dependents with it.
+3. Record each PR's rounds and Issue numbers for the final report.
+4. Escalate in your report when a finding is re-argued without new
+   evidence, or when the dispute is about what the Issue requires. The
+   five-round count is the manager's; at the fifth round without a merge it
+   escalates. Never merge a PR yourself.
 
 ## Rules
 

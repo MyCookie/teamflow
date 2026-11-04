@@ -195,7 +195,11 @@ Issues research filed (`research_issues`, Phase 1), or the next iteration's Issu
    The executing impl-lead returns a *PR-ready report* (no release line)
    when its implementers have reported, and again after each rework: for each
    PR open and ready, its number, branch and the Issues it closes. Keep its
-   agent ID. For each PR listed:
+   agent ID. After a resume that leaves nothing new (a PR merged or was
+   escalated while others are still in review), impl-lead returns instead a
+   one-line *acknowledgement* naming what the resume settled and the PRs
+   still in review: start no round for it, and keep waiting on the rounds in
+   flight. For each PR a PR-ready report lists:
    1. Check it: `tf pr view <N>` must show `state: open` and a `branch:` line
       that targets the base branch. A stacked PR (another target) waits: the
       report names its dependency, and impl-lead lists it once that has
@@ -210,9 +214,11 @@ Issues research filed (`research_issues`, Phase 1), or the next iteration's Issu
       outside the PR's diff), resume impl-lead (by agent ID) with the PR
       number, the verdict and review-lead's report verbatim, after every
       round whatever the outcome, in the order the reports arrive. impl-lead
-      checks the merge itself and has its implementer rework a
-      `REQUEST_CHANGES`, then returns a new PR-ready report, which starts the
-      next round with a fresh review-lead.
+      learns of a merge from this resume, confirms it with `tf pr view`, and
+      has its implementer rework a `REQUEST_CHANGES`; it then returns a new
+      PR-ready report, which starts the next round with a fresh review-lead,
+      or an acknowledgement, or (every PR merged or escalated, and the
+      release unit through its own rounds) the final report.
    4. Escalate to the human, relaying the reason and leaving the PR open,
       when a fifth round for a PR ends without a merge (resume impl-lead
       with the report and tell it the PR is escalated, so it does not

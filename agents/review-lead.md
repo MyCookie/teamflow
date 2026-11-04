@@ -67,9 +67,11 @@ another way: record that check as not verified and say what was refused
    claim once per round, never again (on GitHub a second claim overwrites a
    recorded verdict). From here on, every way the round ends (a verdict, a
    STOP, an incomplete round) runs `tf pr release <N>` before your report.
-2. **Pin the head.** `tf pr view <N>`: it must show `state: open`; the
-   `head:` line is the SHA this round reviews. Everything below is for that
-   SHA only. (The claim does not print a usable SHA locally.)
+2. **Pin the head.** Right after the claim, `tf pr view <N>`: it must show
+   `state: open`; the full SHA on its `head:` line is the one this round
+   reviews, and `tf pr review --sha` needs the full one. Everything below is
+   for that SHA only. (The claim's own output does not give it: none locally,
+   12 characters on GitHub.)
 3. **Check out.** `tf pr checkout <N>` in your own worktree (it refuses in the
    main worktree; if it does, or exits 2, STOP and say so). `git rev-parse
    HEAD` must equal the pinned SHA; if it does not, STOP: the head moved.
@@ -138,7 +140,8 @@ another way: record that check as not verified and say what was refused
 10. **Outside the diff.** The specialists report problems outside the PR's
     diff separately, with a `severity:`. File them yourself, once: merge
     duplicates, check `tf issue list` for an open Issue with the same file:line
-    and defect type (`tf issue comment` on it instead), and file the rest:
+    and defect type, also one filed in an earlier round or for another PR
+    (`tf issue comment` on it instead), and file the rest:
     `tf issue create --title '<one line>' --label severity:<level> --label area:<specialist's area> --body-file - <<'EOF'`
     with Location, Finding, Convention violated (workflow rules, "Issues").
     For a finding the specialist marked `needs-discussion`, use the label

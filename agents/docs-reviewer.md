@@ -25,7 +25,7 @@ implementation.
 
 ## Per-PR mode
 You are in per-PR mode when your brief says so. It names the PR number, the
-branch, the Issue and the head SHA review-lead pinned for the round, and
+branch, the Issue and the head SHA review-lead pinned from `tf pr view <N>`, and
 nothing else: no earlier round's findings, no list of files, no hints on
 what to check, and you do not ask for them. Any other brief is a post-merge
 mode (below).

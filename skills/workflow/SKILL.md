@@ -238,10 +238,11 @@ uses the same codes: without a ruleset requiring both contexts, exit 1 is a
 red `gate` check or a failed merge, exit 2 a missing `gate` check or a bad
 `TF_GATE_WAIT` or `TF_GATE_POLL` (also with such a ruleset); locally, exit 1 is
 a failed merge that is not a conflict. `tf --help` has the timing of the wait.
-If the Bash tool kills a `tf pr gate` or `tf pr merge` call, it returns no exit
-code, yet the merge or auto-merge may already have happened: run
-`tf pr view <N>` before anything else, and neither retry blindly nor report
-the merge as failed.
+If a `tf pr gate` or `tf pr merge` call outlasts its Bash timeout, the tool was
+observed to move it to the background, not kill it; a kill was not observed.
+Either way the merge or auto-merge may already have happened: run
+`tf pr view <N>` before anything else, wait for the backgrounded call's result
+if there is one, and do not retry or report the merge as failed meanwhile.
 
 ## Domain language
 When the project has `CONTEXT.md` (its glossary) or `docs/adr/` (its

@@ -192,7 +192,7 @@ class LocalFlow(unittest.TestCase):
         log = git("log", "-1", "--format=%s%n%b", cwd=self.main)
         self.assertIn("Merge feat/1-v2: feat: v2", log)
         self.assertIn("Closes #1", log)
-        self.assertIn("Reviewed-by: teamflow:code-reviewer (round 3)", log)
+        self.assertIn("Reviewed-by: teamflow:review-lead (round 3)", log)
         self.assertIn("state: closed", self.ok("issue", "view", "1"))
         merged = self.ok("pr", "view", "2")
         self.assertIn("state: merged", merged)
@@ -514,7 +514,7 @@ class GitHubFlow(unittest.TestCase):
 
         self.code(3, "pr", "review", "2", "--verdict", "APPROVE", "--sha", "0" * 40, "--body", "x", cwd=self.rev)
         self.ok("pr", "review", "2", "--verdict", "APPROVE", "--sha", head, "--body", "**Verdict: APPROVE**", cwd=self.rev)
-        self.assertIn("success (APPROVE", self.ok("pr", "view", "2"))
+        self.assertIn("success (APPROVE by teamflow:review-lead)", self.ok("pr", "view", "2"))
         self.assertEqual(self.gh_state()["reviews"][-1]["body"], "**Verdict: APPROVE**")
 
         # a push after the approval: the new head has no verdict
@@ -850,7 +850,7 @@ class GitHubFlow(unittest.TestCase):
         merges = self.gh_state()["merges"]
         self.assertEqual(len(merges), 1)  # exactly one, with no tf pr merge after the review
         self.assertEqual(merges[0], {"pr": "2", "auto": True, "subject": "Merge feat/1-v2: feat: v2",
-                                     "body": "Closes #1\nReviewed-by: teamflow:code-reviewer", "match": head})
+                                     "body": "Closes #1\nReviewed-by: teamflow:review-lead", "match": head})
         self.assertIn("success (APPROVE", self.ok("pr", "view", "2"))
         self.assertIn("auto-merge: on", self.ok("pr", "view", "2"))
 

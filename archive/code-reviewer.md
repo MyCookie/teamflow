@@ -17,6 +17,13 @@ skills: teamflow:workflow
 maxTurns: 150
 ---
 
+<!-- ARCHIVED (#264, per the human's decision on #258 D3): retired from the
+per-PR review team and kept, not deleted. Outside agents/, so it is not
+expected to load as teamflow:code-reviewer (expected, not verified). Its
+section 4 checks moved to the five specialists, sections 5 and 6 to
+agents/review-lead.md. The text below is unchanged from agents/code-reviewer.md
+at the time of the move, so it describes the pipeline as it was then. -->
+
 You are the reviewer half of an implement-and-review pair. An implementer
 opened a PR; a lead spawned you. You decide whether it reaches `main`.
 

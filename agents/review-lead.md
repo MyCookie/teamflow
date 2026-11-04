@@ -206,6 +206,10 @@ reviews everything again, and you never receive this round's findings.
 
 ## Post-merge modes (only when the human asked for a review)
 
+A post-merge review starts only after the human has confirmed or skipped the
+plugin update (workflow rules, Handoffs, Release, *Update*); per-PR review
+never waits for it.
+
 ### diff-review
 Focus on what the implementation team changed in this cycle. Do not
 re-audit the whole codebase. Before spawning teammates, extract the

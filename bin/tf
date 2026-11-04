@@ -13,7 +13,7 @@
     tf pr create --title T (--body B | --body-file F) [--base B]   # F may be - for stdin
     tf pr list
     tf pr view N
-    tf pr checkout N                             # code-reviewer worktree only
+    tf pr checkout N                             # review team worktree only
     tf pr claim N | tf pr release N
     tf pr gate N
     tf pr diff N [PATH ...]                      # base...head, after tf pr checkout
@@ -363,7 +363,7 @@ class Local:
         git("checkout", "--quiet", "--detach", old)
         subject = f"Merge {r['branch']}: {r['title']}"
         trailer = "\n".join([*(f"Closes #{i}" for i in closes(r["body"])),
-                             f"Reviewed-by: teamflow:code-reviewer (round {len(r['reviews'])})"])
+                             f"Reviewed-by: teamflow:review-lead (round {len(r['reviews'])})"])
         merged = subprocess.run(["git", "merge", "--no-ff", "--quiet", "-m", subject, "-m", trailer, tip],
                                 text=True, capture_output=True)
         if merged.returncode:
@@ -634,7 +634,7 @@ class GitHub:
             raise Refused(f"#{n}'s head moved since {sha[:12]}; review the new head")
         self.gh("pr", "review", str(n), "--comment", "--body", body)
         state = "success" if verdict == "APPROVE" else "failure"
-        self.set_status(sha, state, f"{verdict} by teamflow:code-reviewer")
+        self.set_status(sha, state, f"{verdict} by teamflow:review-lead")
         print(f"#{n}: {verdict} recorded at {sha[:12]}")
         if verdict == "APPROVE":
             self.arm(n, pr)
@@ -663,7 +663,7 @@ class GitHub:
             raise ArmFailed(f"verdict recorded, but auto-merge was not enabled ({e}); run tf pr merge {n}")
 
     def merge_args(self, n, pr):
-        body = "\n".join([*(f"Closes #{i}" for i in closes(pr["body"])), "Reviewed-by: teamflow:code-reviewer"])
+        body = "\n".join([*(f"Closes #{i}" for i in closes(pr["body"])), "Reviewed-by: teamflow:review-lead"])
         return ["pr", "merge", str(n), "--merge", "--match-head-commit", pr["headRefOid"],
                 "--subject", f"Merge {pr['headRefName']}: {pr['title']}", "--body", body]
 

@@ -79,10 +79,11 @@ safety check can refuse, and never write or edit any other file.
      human: the human's message answers it. This covers `claude -p --resume
      <session id> "yes"` at the plan, and an answer to U's or D's question.
    - **U.** An `iterations` entry with `auto_approved: false` and a `release`
-     that is not null with `confirmed: false` means the update wait was
-     interrupted: ask the human to confirm or skip it, then end your turn.
-     A `release` with `confirmed: false` on an auto-approved entry is not a
-     wait: Phase 4 reports it.
+     that is not null with `confirmed: false`, while the goal asks for a
+     post-merge review, means the update wait was interrupted: ask the human
+     to confirm or skip it, then end your turn. A `release` with
+     `confirmed: false` on an auto-approved entry, or when the goal asks for
+     no post-merge review, is not a wait: Phase 4 reports it.
    - **D.** Otherwise stop. Show the goal, the iteration, `impl_prs`,
      `iterations` with any release, `tf pr list` and `git worktree list`.
      Ask what to do, and end your turn. A fresh conversation, and a lead
@@ -265,15 +266,15 @@ Issues research filed (`research_issues`, Phase 1), or the next iteration's Issu
    first set `release` on this iteration's entry (shape in Startup), before
    you ask anything (a restart in between must find the marker). Then, if the iteration was
    auto-approved, go on without waiting; Phase 4 reports the update.
-   Otherwise ask the human to run the update and restart as the workflow
-   rule says (you do not run it), end your turn, and wait for the human to
-   confirm or explicitly skip (then set `confirmed: true`) before going on.
-   The update is asked once, after the batch's release has merged, and no
-   review waits on it, because each PR was reviewed before it merged; the
-   wait before Phase 3 only keeps a post-merge review, when the human asked
-   for one, on the code it reviews. A line with no version leaves
-   `release` null. Then go to Phase 3 if the goal asks for a post-merge
-   review, and otherwise to the loop check.
+   Otherwise, if the goal asks for a post-merge review, ask the human to run
+   the update and restart as the workflow rule says (you do not run it), end
+   your turn, and wait for the human to confirm or explicitly skip (then set
+   `confirmed: true`) before Phase 3, so the review runs on the code it
+   reviews. Per-PR review never waits for the update (it ran before each
+   merge), and if no post-merge review is requested nothing waits: go to the
+   loop check, and Phase 4, the batch report, asks for the update without
+   waiting (it is asked once, after the batch's release has merged). A line
+   with no version leaves `release` null.
 
 ---
 
@@ -402,8 +403,10 @@ Report to the human:
 - Remaining open Issues (count + links)
 - The iterations that ran without approval (`auto_approved: true`, no human
   plan approval) and, if any `iterations` entry has a `release` with
-  `confirmed: false` (only auto-approved entries can: the human settled the
-  others, and settling one settles all), the highest such version, which is
+  `confirmed: false` (an auto-approved entry, or one of a run whose goal
+  asked for no post-merge review, because only a requested post-merge review
+  waits for the human's confirmation, and settling one settles all), the
+  highest such version, which is
   the one now on `main`: tell the human to run
   `claude plugin update teamflow@teamflow --scope project` and start a fresh
   session. You do not run it, and you wait for no answer.

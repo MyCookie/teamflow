@@ -20,7 +20,9 @@ author's say-so.**
 
 One session: `claude --agent teamflow:manager`, which spawns the three
 leads. A lead can run alone (`claude --agent teamflow:<lead>`) and then
-reports to the human.
+reports to the human. A lone impl-lead has no manager to hand its PRs to
+review: it opens them, reports them as open and unreviewed, and stops. The
+human starts a review (a lone review-lead in per-PR mode, or the manager).
 
 | Agent | Spawns | Job |
 |---|---|---|
@@ -114,12 +116,16 @@ needed), so no rule here depends on it.
      queued, or unmerged and why), the blocking findings (in the PR's
      verdict comment), how many non-blocking findings the comment holds, and
      the numbers of the Issues it filed for problems outside the PR's diff.
-  3. `APPROVE` and merged: the PR is done. `REQUEST_CHANGES`: the manager
-     resumes impl-lead (by agent ID; leads are resumable only in the same
-     process, so a restarted run stops and asks) with the verdict and the
-     PR number. impl-lead has its implementer fix every `blocker` and `major`
-     (Review and merge, *Rework*) and returns a new PR-ready report; the
-     manager spawns a fresh review-lead for the next round.
+  3. After every round, whatever the outcome, the manager resumes impl-lead
+     (by agent ID; leads are resumable only in the same process, so a
+     restarted run stops and asks) with the PR number, the verdict and
+     review-lead's report, so impl-lead knows each merge and can start units
+     that depend on it, the release unit, and its final report. On
+     `REQUEST_CHANGES` impl-lead has its implementer fix every `blocker` and
+     `major` (Review and merge, *Rework*) and returns a new PR-ready report;
+     the manager spawns a fresh review-lead for the next round. On `APPROVE`
+     and merged the PR is done. On an unmerged or escalated PR impl-lead
+     records that for its final report.
   4. The manager counts rounds per PR and escalates to the human when a
      fifth round does not end in a merge, or on any other reason under
      *Escalate to the human* (Review and merge). The PR stays open.
@@ -394,7 +400,9 @@ every finding of diff-review mode. Severity: high / medium / low /
 needs-discussion, grounded in a documented convention or a clear correctness
 defect; location; finding / task; convention violated (the specific rule, or
 needs-discussion). In per-PR mode review-lead files these Issues once, after
-merging the specialists' duplicates.
+merging the specialists' duplicates. The duplicate rule below applies across
+rounds and across concurrent PRs: if an open Issue has the same file:line and
+defect type, review-lead comments on it instead of filing again.
 
 In diff-review mode a finding is **new** if no prior cycle filed it, or a
 prior Issue was closed without fixing the root cause. A finding is a
@@ -462,24 +470,30 @@ rules below are the one statement; the agent prompts point here.
   any specialist starts, and spawns nothing if it refuses (it reports that).
   On GitHub a claim overwrites an existing `teamflow/code-review` status of
   the head with `pending` (read in `bin/tf`, `pr_claim`), so a second claim
-  in a round would erase a recorded verdict. The claim prints the head SHA:
-  review-lead pins the round to it. `tf pr release <N>` once the verdict
+  in a round would erase a recorded verdict. review-lead pins the round to
+  the full SHA on the `head:` line of `tf pr view <N>`, read right after the
+  claim (the claim's own output does not give it: locally none, on GitHub 12
+  characters, read in `bin/tf`; `tf pr review --sha` needs the full one).
+  `tf pr release <N>` once the verdict
   lands; if review-lead dies without one, the manager releases the claim.
-- **Gate.** review-lead runs `tf pr gate <N>` after the claim and before the
-  specialists, with the long Bash timeout (exit codes: Issues and PRs,
+- **Gate.** review-lead runs `tf pr checkout <N>` in its own worktree (locally
+  `tf pr gate` refuses a worktree not at the head), then `tf pr gate <N>`,
+  after the claim and before the specialists, with the long Bash timeout (exit codes: Issues and PRs,
   `tf`). Exit 1 (red) is a `blocker`; the round continues, to give the
   implementer the whole picture. A gate that could not run, or exit 2 or 3,
   is a STOP: the gate is not verified and no verdict is recorded.
 - **Specialists.** Five fresh specialists every round, in parallel, each
-  prompted with only the PR number, branch and Issue (#258 D7, D11). No
-  prior-round finding, risk, changed-file list or conventions briefing is
-  passed: naming risks or suggesting what to check undermines independence.
-  Each checks the PR's head out with `tf pr checkout <N>` in its own worktree
-  and reports its findings, graded as in Review findings, to review-lead.
+  prompted with only the PR number, branch, Issue and the head SHA
+  review-lead pinned from `tf pr view <N>` (#258 D7, D11; the SHA is a pin,
+  not a briefing). No prior-round finding, risk, changed-file list or
+  conventions briefing is passed: naming risks or suggesting what to check
+  undermines independence. Each checks the PR's head out with
+  `tf pr checkout <N>` in its own worktree, confirms `git rev-parse HEAD`
+  equals the pinned SHA (else it stops and says so), and reports its findings, graded as in Review findings, to review-lead.
   Specialists review against the Issue and these rules.
 - **Verdict: exactly one `tf pr review` per head per round**, made by
   review-lead after all five specialists have reported, recorded against the
-  head SHA it pinned at the claim (`tf` refuses a head that moved). The
+  full head SHA it pinned after the claim (`tf` refuses a head that moved). The
   first `APPROVE` on a ruleset repository arms auto-merge and the last
   status per head wins, so a second call, or a call by a specialist, could
   merge a head nobody fully reviewed (read in `bin/tf`, `approved` and

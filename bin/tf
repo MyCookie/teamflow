@@ -53,7 +53,10 @@ GitHub is expected to refuse that merge (exit 1; by reading only, not
 observed). With a ruleset requiring both, `tf pr merge` does not wait for
 pending checks: it retries only a failed read of
 the required checks, then enables auto-merge. A failed poll or an empty check
-list is retried the same way. `tf pr merge` has one TF_GATE_WAIT deadline for
+list is retried the same way. If a check is still pending at the deadline, tf also
+prints the PR's head SHA (read after the wait) and, per pending check, what gh reports (state,
+workflow, event, link, startedAt, completedAt, description), to tell a slow run from a stale
+rollup. `tf pr merge` has one TF_GATE_WAIT deadline for
 all of it, not one per step. tf puts no time limit on the gh calls, so the
 real wait is that deadline plus the last poll and the calls after it; how that
 compares with the Bash tool's timeout is not verified here. An unenforced merge
@@ -407,6 +410,9 @@ def gate_timing():
     return wait, poll
 
 
+CHECK_FIELDS = "name,bucket,state,workflow,event,link,startedAt,completedAt,description"  # what `gh pr checks --json` accepts, run against gh 2.103.3
+
+
 def pending_names(checks):
     return [c["name"] for c in checks if c["bucket"] == "pending"]
 
@@ -549,7 +555,7 @@ class GitHub:
         not say the call failed: stdout that parses as a JSON list is the answer. Without one,
         only gh's "no [required] checks reported" means none; anything else is a failure.
         """
-        args = ["gh", "pr", "checks", str(n), "-R", self.slug, "--json", "name,bucket"]
+        args = ["gh", "pr", "checks", str(n), "-R", self.slug, "--json", CHECK_FIELDS]
         result = subprocess.run(args + (["--required"] if required else []), text=True, capture_output=True)
         try:
             data = json.loads(result.stdout)
@@ -598,6 +604,14 @@ class GitHub:
         for c in checks:
             print(f"{c['name']}: {c['bucket']}")
         if pending_names(checks):
+            try:  # a pending check at the deadline: show enough of gh's answer to tell a slow run from a stale rollup (#254)
+                head = self.head(n)["headRefOid"]
+            except RuntimeError as e:
+                head = f"unreadable ({e})"
+            print(f"head: {head}")
+            for c in checks:
+                if c["bucket"] == "pending":
+                    print(f"  {json.dumps(c)}")
             raise Refused(f"CI did not finish within {wait:g}s; still running: {', '.join(pending_names(checks))}")
         if any(c["bucket"] != "pass" for c in checks):
             sys.exit(1)

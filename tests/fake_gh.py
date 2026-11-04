@@ -12,6 +12,8 @@ it, except the last, which stays. A bucket of "empty" answers with no checks, an
 "error" fails the call with an HTTP 502. "required_errors" is a count of
 `pr checks --required` calls that fail that way before the rest answer.
 "required_names" limits `pr checks --required` to the checks of those names.
+A check may carry more fields than name and bucket (`state`, `workflow`, `event`, `link`, `startedAt`,
+`completedAt`, `description` are the ones real gh printed for #254); `pr checks --json` answers only those asked for.
 "reads" counts the `pr checks` calls, as {"required": n, "all": m}.
 "checks_stdout" makes every `pr checks` call print that text
 and exit 1 with nothing on stderr. "revoke_on_pending" makes a `pr checks`
@@ -178,7 +180,8 @@ def main():
             if pending and state.get("change_on_pending"):
                 state["prs"][rest[0]].update(state.pop("change_on_pending"))
                 save(state)
-            print(json.dumps(checks))
+            want = (opt(rest, "--json") or "").split(",")  # like gh, answer only the fields asked for
+            print(json.dumps([{k: v for k, v in c.items() if k in want} for c in checks]))
             sys.exit(8 if pending else 0)
         elif verb == "review":
             state["reviews"].append({"pr": rest[0], "body": opt(rest, "--body")})

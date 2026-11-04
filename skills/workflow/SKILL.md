@@ -66,7 +66,7 @@ needed), so no rule here depends on it.
     here. It applies when `teamflow-config teamflow_auto_approve` is `low`
     (the default; `none` turns it off, and then every plan waits for the
     human, the loop check's severity-threshold stop and human question apply
-    as written, and the release is confirmed before review).
+    as written, and the update is confirmed when the batch is reported).
     - *All-low batch.* Every condition holds: each Issue in impl-lead's plan
       carries exactly one `severity:` label and it is `severity:low` (no
       label, or more than one, is not low); none carries `needs-discussion`;
@@ -192,8 +192,9 @@ needed), so no rule here depends on it.
     run `claude plugin update teamflow@teamflow --scope project`, start a
     fresh session, and confirm or skip, once the batch's release has merged
     and when the manager reports the batch (for an auto-approved iteration,
-    see Auto-approval). No review waits on it: per-PR review has already
-    run, and a post-merge review starts only when the human asks for one.
+    see Auto-approval). Per-PR review never waits for the update: it ran
+    before the merge. A post-merge review the human asks for starts only after
+    the human confirms or skips the update.
     Agents never run the update: it changes the human's install.
 - **Post-merge review (optional).** Off by default, with no config key (#258
   D6): it runs only when the human asks, through the route "Review what we

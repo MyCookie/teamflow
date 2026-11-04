@@ -24,10 +24,23 @@ reports to the human.
 
 | Agent | Spawns | Job |
 |---|---|---|
-| manager | the three leads | Routes goals, runs handoffs, governs the review-implement loop |
+| manager | the three leads | Routes goals, runs every handoff (including each PR's rounds between impl-lead and review-lead), counts each PR's rounds, governs the optional review-implement loop |
 | research-lead | `researcher` | Decomposes goals into Issues; implements nothing |
-| impl-lead | `implementer`, `code-reviewer` | One worktree and PR per non-overlapping unit; owns each PR's review rounds to merge |
-| review-lead | five specialist reviewers; `code-reviewer` in merge-review mode | Diff-reviews the cycle's merged PRs and files follow-up Issues |
+| impl-lead | `implementer` | One worktree and PR per non-overlapping unit; implements and reworks, never reviews |
+| review-lead | five specialist reviewers | Reviews each PR before it merges (per-PR mode): claims it, checks the gate, records the one verdict, arms or runs the merge. On the human's request, diff-reviews merged PRs and files follow-up Issues (diff-review mode) |
+
+The review team takes part in each PR before it merges, so a merge is never
+the author's say-so. `teamflow:code-reviewer` is no longer part of the
+pipeline (archived, not deleted; #258 D3). The checks it made are the review
+team's now: the gate, the Issue's acceptance criteria, test integrity,
+red/green, commits and checker changes. review-lead is accountable that each
+is covered before it records a verdict.
+
+**Spawn depth.** Every handoff runs through the manager (#258 D1), so no lead
+spawns another lead: the manager is the main thread, the leads are layer 1,
+their workers layer 2. These rules need no third layer. A chain of three
+layers has never been run in teamflow (the spike, #259, was closed as not
+needed), so no rule here depends on it.
 
 ## Routing (manager)
 
@@ -35,9 +48,9 @@ reports to the human.
 |---|---|
 | Vague goal, feature idea, open-ended question | Research |
 | Specific task with no existing Issue | Research |
-| Specific Issue number(s), "fix #N" | Implementation |
-| "Review what we just built" | Review, diff-review mode |
-| A PR the implementation team did not open | Review, merge-review mode (outside the loop) |
+| Specific Issue number(s), "fix #N" | Implementation; each PR then goes through per-PR review before it merges |
+| "Review what we just built" | Review, diff-review mode (post-merge, optional: only on the human's request) |
+| A PR the implementation team did not open | Review, per-PR mode, as merge-review (outside the loop) |
 
 ## Handoffs
 
@@ -71,21 +84,55 @@ reports to the human.
       the human the plan was auto-approved and why, and spawns the executing
       impl-lead without waiting. If a check fails, or an
       Issue cannot be read, the plan waits for the human as under `none`.
-    - *Loop and pause.* The loop rules are stated once, in the manager's
-      loop check (`agents/manager.md`). Its all-low test is the label
-      conditions of *All-low batch* above, on the cycle's new Issues.
+    - *Loop and pause.* The review-implement loop exists only when a
+      post-merge review runs (see *Two loops* under Handoffs). Its rules are
+      stated once, in the manager's loop check (`agents/manager.md`), and its
+      all-low test is the label conditions of *All-low batch* above, on the
+      cycle's new Issues. The PR loop has no new Issues and no pause.
     - *Release.* For an auto-approved iteration the release line is
       validated as usual and the release recorded, but the update
-      becomes a statement in the final report, not a question before the
-      review. Agents
+      becomes a statement in the final report, not a question. Agents
       still never run the update. Escalations (disputes, five rounds,
       unmerged or escalated PRs, more high-severity Issues than resolved,
       ownership conflicts, critical security findings) reach the human as
       before (the pause above is the part of that which stops the loop).
-- **Implementation → Review.** impl-lead's final report to the manager: PR
-  URLs, Issues each closes, each PR's final code-reviewer verdict. The manager
-  spawns review-lead with "diff-review mode. Review PRs: [list]. File new Issues for anything that
-  needs fixing."
+- **Two loops.** (#258 D5.) The *PR loop* runs inside every PR: implement,
+  then review and rework rounds until the PR merges or is escalated (the next
+  handoff). The *review-implement loop* (post-merge review, then a next
+  iteration on the Issues it filed) runs only when a post-merge review runs,
+  and that happens only when the human asks for it (*Post-merge review*
+  below). Without that request an implementation pass ends when its PRs have
+  merged or been escalated.
+- **Implementation ⇄ Review (the PR loop, one per PR).**
+  1. impl-lead opens a PR (`tf pr create`) and returns a *PR-ready report*
+     to the manager: for each PR open and ready, its number, branch and the
+     Issues it closes. impl-lead does not claim, review or merge.
+  2. The manager spawns a fresh review-lead for each PR with "per-PR mode.
+     PR #<N>, branch <branch>, Issue #<issue or none>." and nothing more. A
+     *round* is one such spawn. review-lead's report to the manager: the
+     verdict and the head SHA it applies to, the merge state (merged,
+     queued, or unmerged and why), the blocking findings (in the PR's
+     verdict comment), how many non-blocking findings the comment holds, and
+     the numbers of the Issues it filed for problems outside the PR's diff.
+  3. `APPROVE` and merged: the PR is done. `REQUEST_CHANGES`: the manager
+     resumes impl-lead (by agent ID; leads are resumable only in the same
+     process, so a restarted run stops and asks) with the verdict and the
+     PR number. impl-lead has its implementer fix every `blocker` and `major`
+     (Review and merge, *Rework*) and returns a new PR-ready report; the
+     manager spawns a fresh review-lead for the next round.
+  4. The manager counts rounds per PR and escalates to the human when a
+     fifth round does not end in a merge, or on any other reason under
+     *Escalate to the human* (Review and merge). The PR stays open.
+  5. When every PR of the batch has merged or been escalated, and after the
+     release unit (Release, below) has gone through steps 1 to 4, impl-lead
+     gives its *final report*: PR URLs, the Issues each closes, each PR's
+     final verdict and round count, how many non-blocking findings each PR's
+     comment holds (not worked on), the numbers of Issues filed for
+     problems outside a PR's diff (from review-lead's reports, which the
+     manager passes along with each resume), and the release line.
+  The cost of routing through the manager is accepted for now (#258 D1). A
+  note-passing agent or a state file read by both leads were considered and
+  are not decided.
 - **Release (end of Implementation).** The one statement of the release
   rule: the README ("Release") and the agent prompts point here.
   - *Why.* A merged change reaches the agents only after a version bump in
@@ -109,7 +156,8 @@ reports to the human.
     queued auto-merge is not merged (Review and merge, *Queued merge*, makes
     it merged). The release unit is branched from
     up-to-date `main` (never stacked) after every other unit has merged, then
-    reviewed and merged like any PR, all before impl-lead reports. On GitHub
+    reviewed and merged like any PR (the PR loop), all before impl-lead gives
+    its final report. On GitHub
     units merge remotely, so the main worktree must be fast-forwarded
     (`git pull --ff-only` there) before `main` is read; locally `tf pr merge`
     has already updated `main`. Two readings of `version` in
@@ -120,12 +168,12 @@ reports to the human.
       PR) has merged, after the fast-forward on GitHub. This is the version
       the release line names.
   - *Unmerged.* If any unit, the release PR or the carrying PR is escalated
-    or stays unmerged, impl-lead does not hold the report: it spawns no
+    or stays unmerged, impl-lead does not hold the final report: it spawns no
     release unit and reports at once, naming the unmerged PR in the report
     body. Merged shipped-path changes left by an unmerged batch are not
     tracked by any mechanism: they ship with the next release that happens.
-    PRs merged through merge-review mode (outside the loop) get no automatic
-    release step either.
+    PRs merged through per-PR review as merge-review (outside the loop) get no
+    automatic release step either.
   - *Release line.* impl-lead ends its final report with exactly one of:
     "Release: <version>, merged in PR #N" (the release unit),
     "Release: <version>, carried by PR #N" (the carrying PR, merged),
@@ -136,17 +184,27 @@ reports to the human.
     has merged.
   - *Update.* Whenever the line names a version, the manager asks the human to
     run `claude plugin update teamflow@teamflow --scope project`, start a
-    fresh session, and confirm or skip before the review phase
-    (for an auto-approved iteration, see Auto-approval).
+    fresh session, and confirm or skip, once the batch's release has merged
+    and when the manager reports the batch (for an auto-approved iteration,
+    see Auto-approval). No review waits on it: per-PR review has already
+    run, and a post-merge review starts only when the human asks for one.
     Agents never run the update: it changes the human's install.
-- **Review → Implementation (loop).** review-lead's final report to the manager:
-  the numbers of the new Issues, highest severity, tracking Issue number, and
-  whether prior-cycle Issues remain unfixed. Manager runs the loop check; if
-  continuing, the next iteration plans exactly the new Issues; if stopping, reports to the human. Under
+- **Post-merge review (optional).** Off by default, with no config key (#258
+  D6): it runs only when the human asks, through the route "Review what we
+  just built". The manager then spawns review-lead with "diff-review mode.
+  Review PRs: [list]. File new Issues for anything that needs fixing." It
+  is a second look at merged code, not the merge gate.
+- **Review → Implementation (loop, post-merge review only).** review-lead's
+  final report to the manager: the numbers of the new Issues, highest
+  severity, tracking Issue number, and whether prior-cycle Issues remain
+  unfixed. Manager runs the loop check; if continuing, the next iteration
+  plans exactly the new Issues; if stopping, reports to the human. Under
   `teamflow_auto_approve` `low` the loop check has exceptions (see
-  Auto-approval).
-- **Review → Done.** Zero new Issues, or the loop check ends the loop: the manager reports
-  final state to the human.
+  Auto-approval). Issues filed per PR for problems outside a PR's diff are
+  not new Issues of this loop: they wait in the backlog.
+- **Review → Done.** No post-merge review was requested, or it filed zero new
+  Issues, or the loop check ends the loop: the manager reports final state
+  to the human.
 
 ## Role bounds
 - Every agent has exactly one job. Route out-of-scope work to the right
@@ -211,8 +269,8 @@ worktrees.
 | | `local` (default) | `github` (adopted) |
 |---|---|---|
 | Issues and PRs | Records in the git common dir, shared by all worktrees, never committed | GitHub Issues and PRs |
-| One reviewer per PR | `tf pr claim`: a lock | `tf pr claim`: a pending `teamflow/code-review` status on the head |
-| Gate at review | The reviewer runs `scripts/gate.sh` (`tf pr gate`) | CI's required checks on the head (`tf pr gate`); no second local run |
+| One review per PR round | `tf pr claim`: a lock | `tf pr claim`: a pending `teamflow/code-review` status on the head |
+| Gate at review | review-lead runs `scripts/gate.sh` (`tf pr gate`) | CI's required checks on the head (`tf pr gate`); no second local run |
 | Verdict | Recorded against the reviewed head SHA | A PR comment plus a `teamflow/code-review` status on that SHA |
 | Merge | `tf pr merge` merges into the base branch; nothing is pushed | With a ruleset requiring both `gate` and `teamflow/code-review`, `tf pr review --verdict APPROVE` enables auto-merge, pinned to the reviewed head, and GitHub merges once required checks pass (at once if the PR is already clean); `tf pr merge` is only the fallback. Without one (no ruleset, one lacking either context, or one `tf` cannot read), `tf pr review` arms nothing, and `tf pr merge` checks the CI `gate` check and the verdict itself, then merges, waiting for pending CI like `tf pr gate`. Every GitHub `tf pr merge` can block up to `TF_GATE_WAIT`, so it needs the long Bash timeout |
 | Stacked PR after its dependency merges | `tf` retargets it to the base branch | GitHub retargets it, because adoption deletes merged branches (`delete_branch_on_merge`); without that it stays on the old base |
@@ -228,7 +286,7 @@ Exit codes: 0 ok, 1 error, 2 setup or usage problem, 3 refused because of PR
 state (claimed, moved head, no approval, or after the wait of `tf pr gate` or
 `tf pr merge`, CI still running or unreadable), 4 the verdict of `tf pr review
 --verdict APPROVE` is recorded but auto-merge was not armed (its status
-stays set; code-reviewer section 6 says what to do). Exit 3 is a STOP, not a
+stays set; Review and merge, *Merge*, says what to do). Exit 3 is a STOP, not a
 retry signal. `tf pr gate` exits 1 for a red gate in both modes (locally, any
 nonzero result of `scripts/gate.sh`, so also a gate that could not run: read
 its output). On GitHub it reports a red check as soon as every check has
@@ -284,7 +342,8 @@ Only the manager and the leads run `tf issue edit`; other agents report a
 label change to their lead instead.
 
 **Tracking Issues** are the reports a lead opens at the end of a pass
-(research-lead: its Issue list; review-lead: a review cycle). They carry no
+(research-lead: its Issue list; review-lead: a post-merge review cycle, never a
+per-PR round). They carry no
 `severity:`, `area:` or `type:` label: a report, not work.
 - The lead reports the tracking Issue's number and the numbers of the Issues
   it filed (review-lead: the net new ones), never a URL: `tf issue create`
@@ -310,12 +369,32 @@ check each claim:
 - **Dependencies**: Issues that must merge first.
 - **Open questions**: unresolved ambiguities, stated rather than guessed.
 
-**Review findings** carry:
-- **Severity**: high / medium / low / needs-discussion, grounded in a
-  documented convention or a clear correctness defect
-- **Location**: file:line where applicable
-- **Finding / Task**: what needs doing and why
-- **Convention violated**: the specific rule, or needs-discussion
+**Review findings** are graded on one of two scales, with no mapping between
+them (#258 D4).
+
+*On a PR* (per-PR mode): `blocker`, `major`, `minor`, `nit`. Each finding
+carries its grade, its location (file:line where applicable), what is wrong
+and why, the rule or requirement it breaks, and a suggested fix (an argument,
+not a tested patch).
+
+| Grade | Meaning | Blocks merge |
+|---|---|---|
+| `blocker` | Hard-rule breach, wrong behaviour, contract violation | yes |
+| `major` | Required case missing, pre-existing test weakened, a doc stating a falsehood or a command that does not work | yes |
+| `minor` | Clarity, dead code, stale or incomplete docs | no |
+| `nit` | Style | no |
+
+These findings live in the PR (the verdict comment) and are not filed as
+Issues. `minor` and `nit` findings are collected there and are not worked on
+yet. A verdict is `APPROVE` only with zero `blocker` and zero `major`
+findings and a green gate.
+
+*As an Issue*: a problem outside the PR's diff, found in per-PR mode, and
+every finding of diff-review mode. Severity: high / medium / low /
+needs-discussion, grounded in a documented convention or a clear correctness
+defect; location; finding / task; convention violated (the specific rule, or
+needs-discussion). In per-PR mode review-lead files these Issues once, after
+merging the specialists' duplicates.
 
 In diff-review mode a finding is **new** if no prior cycle filed it, or a
 prior Issue was closed without fixing the root cause. A finding is a
@@ -355,7 +434,8 @@ records, per test: its name, the command, the red output, and that it now
 passes. A change that cannot be tested (prose, configuration) says so and
 why. A reviewer re-runs a new test against the base branch's code where it
 can. Missing red/green evidence on a testable change is a `major` under
-`required`, a `minor` under `recommended`.
+`required`, a `minor` under `recommended` (the per-PR grades of Review
+findings).
 
 ## Opening a PR
 ```bash
@@ -369,51 +449,87 @@ unedited template, and pushes the branch first on GitHub. The body carries
 evidence.
 
 ## Review and merge
-- **Per PR:** a fresh `teamflow:code-reviewer` checks the gate, reviews
-  against the Issue and these rules, records its verdict for the exact head
-  it reviewed, and on `APPROVE` sees to the merge as its section 6 says
-  (`tf pr review` arms auto-merge, or the reviewer runs `tf pr merge`). It is
-  the only actor that arms or runs a merge: `tf pr create` arms nothing (no
-  auto-merge code in it, read in `bin/tf`).
-- **Who spawns it:** `impl-lead` for its team's PRs, owning the rounds;
-  `review-lead` only in merge-review mode.
-- **One reviewer per PR.** The spawning lead runs `tf pr claim <N>` first
-  and does not spawn if it refuses; `tf pr release <N>` when the verdict
-  lands or the reviewer dies.
-- **Fresh each round,** prompted with only the PR number, branch and Issue.
-  Naming risks or suggesting what to check undermines independence.
+Every PR is reviewed by the review team before it merges, in rounds. The
+rules below are the one statement; the agent prompts point here.
+- **Who:** one fresh review-lead per round, spawned by the manager with only
+  the PR number, branch and Issue (Handoffs, the PR loop). review-lead alone
+  claims, checks the gate, spawns the specialists, records the verdict and
+  arms or runs the merge. It is the only actor that arms or runs a merge
+  (#258 D2): the five specialists never run `tf pr claim`, `release`,
+  `review` or `merge`, and impl-lead and the implementer never do. `tf pr
+  create` arms nothing (no auto-merge code in it, read in `bin/tf`).
+- **Claim.** review-lead runs `tf pr claim <N>` first, once per round, before
+  any specialist starts, and spawns nothing if it refuses (it reports that).
+  On GitHub a claim overwrites an existing `teamflow/code-review` status of
+  the head with `pending` (read in `bin/tf`, `pr_claim`), so a second claim
+  in a round would erase a recorded verdict. The claim prints the head SHA:
+  review-lead pins the round to it. `tf pr release <N>` once the verdict
+  lands; if review-lead dies without one, the manager releases the claim.
+- **Gate.** review-lead runs `tf pr gate <N>` after the claim and before the
+  specialists, with the long Bash timeout (exit codes: Issues and PRs,
+  `tf`). Exit 1 (red) is a `blocker`; the round continues, to give the
+  implementer the whole picture. A gate that could not run, or exit 2 or 3,
+  is a STOP: the gate is not verified and no verdict is recorded.
+- **Specialists.** Five fresh specialists every round, in parallel, each
+  prompted with only the PR number, branch and Issue (#258 D7, D11). No
+  prior-round finding, risk, changed-file list or conventions briefing is
+  passed: naming risks or suggesting what to check undermines independence.
+  Each checks the PR's head out with `tf pr checkout <N>` in its own worktree
+  and reports its findings, graded as in Review findings, to review-lead.
+  Specialists review against the Issue and these rules.
+- **Verdict: exactly one `tf pr review` per head per round**, made by
+  review-lead after all five specialists have reported, recorded against the
+  head SHA it pinned at the claim (`tf` refuses a head that moved). The
+  first `APPROVE` on a ruleset repository arms auto-merge and the last
+  status per head wins, so a second call, or a call by a specialist, could
+  merge a head nobody fully reviewed (read in `bin/tf`, `approved` and
+  `arm`). `APPROVE` needs zero `blocker` and `major` from any specialist and
+  a green gate; otherwise `REQUEST_CHANGES`. The comment carries the gate
+  result, each finding with its grade, and what was checked and how.
+  Every round is a full re-review, never a spot-check of the fixes.
+- **Merge** (only on `APPROVE`, only review-lead). On `REQUEST_CHANGES`
+  nothing is armed or merged. After `APPROVE`, the output and exit code of
+  `tf pr review` say what is left: locally, run `tf pr merge <N>`; on GitHub
+  with the ruleset the review armed auto-merge, so run no merge command; with
+  no ruleset requiring both contexts, run `tf pr merge <N>`; for a stacked PR
+  (targets another branch than the base) run none and report it; exit 4 (the
+  verdict is recorded, auto-merge was not armed) is the one non-zero exit
+  that is not a STOP: run `tf pr merge <N>` once. Any other non-zero exit is a
+  STOP. Never `--admin`, a direct `git push`, or a self-approval.
 - **A verdict is for one commit.** A push after an approval needs a new
-  review; `tf` refuses to merge a head nobody approved.
-- **Stacked PRs** are reviewed in dependency order: spawn a stacked PR's
-  reviewer only once it targets the base branch. A dependency that is
-  escalated or stays unmerged (see *Queued merge*) leaves its stacked PR
-  unreviewed; impl-lead escalates that PR too.
+  round; `tf` refuses to merge a head nobody approved.
+- **Stacked PRs** are reviewed in dependency order: the manager hands a
+  stacked PR to review-lead only once it targets the base branch. A
+  dependency that is escalated or stays unmerged (see *Queued merge*) leaves
+  its stacked PR unreviewed; it is escalated too.
 - **Queued merge** (GitHub with the ruleset, armed by `tf pr review` or by
   the fallback `tf pr merge`; locally `tf pr merge` merges at once). A queued
-  auto-merge has no event source, so impl-lead drives it right after each
-  `APPROVE` that leaves one (the reviewer's report says so), for every PR,
+  auto-merge has no event source, so review-lead, the actor that armed it,
+  drives it right after each `APPROVE` that leaves one, for every PR,
   stacked dependencies included. No human is involved and nobody polls.
   1. Run `tf pr gate <N>` once, with the long Bash timeout. When it returns
      is described in the exit-code paragraph of "Issues and PRs: `tf`".
      Exit 0: go to 2. Exit 1 (red), 2 (no `gate` check) or 3 (CI pending or
-     unreadable after the wait): the PR *stays unmerged*. Escalate in
-     its final report to the manager, with the output; `tf pr view` and step 2 do not run.
+     unreadable after the wait): the PR *stays unmerged*. review-lead
+     reports that to the manager with the output, and `tf pr view` and step
+     2 do not run.
   2. Run `tf pr view <N>`. `state: merged`: done, ignoring `merge state:`.
      Otherwise (open) read its `merge state:` line (GitHub's
      `mergeStateStatus`, lowercased).
-     - `behind`: the base moved on and the ruleset holds the merge. Resume
-       the implementer to merge the base into its branch (never rebase or
-       force-push) and run a new round. That round's `APPROVE` arms auto-merge
-       again, so this procedure runs again for it, including one new
-       `tf pr gate`. Review handoff's five-round limit bounds the loop.
+     - `behind`: the base moved on and the ruleset holds the merge.
+       review-lead reports it; the manager resumes impl-lead, whose
+       implementer merges the base into its branch (never rebase or
+       force-push), and runs a new round. That round's `APPROVE` arms
+       auto-merge again, so this procedure runs again for it, including one
+       new `tf pr gate`. The five-round limit bounds the loop.
        Whether the earlier auto-merge stays armed across the push, and what
        a second `--auto` on an armed PR does, are unverified (spike #226 was
        not run).
      - Any other value: run `tf pr view <N>` once more, without waiting,
        because GitHub can merge a moment after the checks finish. Merged:
-       done. Still open: the PR *stays unmerged*. Escalate in its final
-       report to the manager and do not wait a second time. The escalation may be spurious, because
-       the merge delay was not measured.
+       done. Still open: the PR *stays unmerged*. review-lead reports that
+       to the manager, which escalates, and does not wait a second time. The
+       escalation may be spurious, because the merge delay was not measured.
   Observed `merge state:` values (a reviewer ran `tf pr view` against real
   PRs): `blocked` on an open PR before it merged, `unknown` on a merged PR.
   `behind` was not observed; it is expected for a branch the base has moved
@@ -423,11 +539,14 @@ evidence.
   `merge state:`.
 - **Rework:** on `REQUEST_CHANGES` the implementer fixes every `blocker` and
   `major` on the same branch, re-runs the gate, and on GitHub pushes the
-  fix; a new reviewer re-reviews everything. A suggested fix is an argument,
-  not a tested patch.
+  fix; a fresh round then re-reviews everything with a fresh review-lead and
+  five fresh specialists. A suggested fix is an argument, not a tested patch.
 - **Escalate to the human** when a finding is re-argued without new
   evidence, when the dispute is about what the Issue requires, or at five
-  rounds. Leave the PR open.
+  rounds. The manager relays it. Leave the PR open.
+- **A PR the implementation team did not open** (merge-review) uses the same
+  per-PR review. There is no implementer to resume, so the manager relays a
+  `REQUEST_CHANGES` to the human and the author reworks.
 
 Locally this is a process control: every agent runs as the same OS user.
 On GitHub the teamflow branch ruleset enforces that no merge happens

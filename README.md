@@ -264,7 +264,8 @@ from goal to merged PR is not verified.**
   docs, not tested with teamflow.
 - Leads return after their workers where the harness makes them wait:
   interactive, and `-p` or the SDK with fork mode on. Teamflow does not
-  support `-p` with fork mode off. A restarted run stops and asks.
+  support `-p` with fork mode off. A restarted run stops and asks, except a
+  fresh headless restart, which keeps no state and starts at Phase 0.
 
 **After an update,** start a fresh `claude --agent teamflow:manager`; never
 `--resume` the pre-update session. The resumed session keeps the old prompt

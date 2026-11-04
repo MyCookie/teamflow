@@ -66,7 +66,7 @@ Each check is cheap and catches a different failure:
 1. `/agents` lists the teamflow agents.
 2. The manager starts without the depth stop. If it stops and says nesting
    is off, `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` is `1`; set it to 2 or
-   more (README, "Run").
+   more (README, "Run"). Two is enough: every handoff runs through the manager.
 3. `tf mode` prints the intended mode, and `teamflow-config` the intended
    loop bounds.
 4. Asked to edit a source file, the manager refuses.
@@ -74,8 +74,10 @@ Each check is cheap and catches a different failure:
    shows impl-lead's plan and waits for your approval (unless
    `teamflow_auto_approve` is `low` and the batch is all-low, which the
    manager approves and tells you), the implementer works in its own worktree and
-   opens the PR with `tf pr create`, and exactly one code-reviewer claims
-   and reviews it, and the merge step follows (code-reviewer section 6).
+   opens the PR with `tf pr create` and returns; the manager then spawns a
+   fresh review-lead, which claims the PR, runs the gate, has five fresh
+   specialists review it, records the one verdict and arms or runs the merge
+   (workflow skill, Review and merge). This path has not been run live.
 
 Afterwards remove leftover worktrees (`git worktree list`) and the
 `worktree-agent-*` branches that isolated subagents leave behind.

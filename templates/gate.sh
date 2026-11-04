@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The merge gate. One script, so what the implementer ran and what the
-# code-reviewer ran cannot drift (teamflow workflow rules).
+# review team ran cannot drift (teamflow workflow rules).
 #
 # Every step runs even after an earlier one fails: a reviewer wants the whole
 # picture, not the first thing that broke. Exits non-zero if any step failed.

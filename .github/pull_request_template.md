@@ -1,4 +1,4 @@
-<!-- Everything here is a hint for the code-reviewer, never evidence: it
+<!-- Everything here is a hint for the review team, never evidence: it
      re-derives all of it independently. State only what you ran. -->
 
 ## Issue

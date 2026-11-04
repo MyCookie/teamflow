@@ -12,7 +12,7 @@
     {
       "name": "teamflow",
       "source": "./",
-      "description": "A research, implementation and review agent pipeline with an independent per-PR reviewer",
+      "description": "A research, implementation and review agent pipeline with the review team reviewing every PR before it merges",
       "license": "Apache-2.0"
     }
   ]

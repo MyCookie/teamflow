@@ -140,7 +140,7 @@ needed), so no rule here depends on it.
   note-passing agent or a state file read by both leads were considered and
   are not decided.
 - **Release (end of Implementation).** The one statement of the release
-  rule: the README ("Release") and the agent prompts point here.
+  rule: `docs/release.md` ("Release") and the agent prompts point here.
   - *Why.* A merged change reaches the agents only after a version bump in
     `.claude-plugin/plugin.json`, the human's update, and a fresh session
     (`/reload-plugins` is untested for subagent definitions).

@@ -90,7 +90,7 @@ quoting_is_safe() {
     grep -rnE -- "$heredoc" "$@" && bad=1
     return "$bad"
 }
-step "agent docs pass bodies safely" quoting_is_safe agents skills README.md
+step "agent docs pass bodies safely" quoting_is_safe agents skills docs README.md
 
 # Plugin validation needs the claude CLI (no login). CI installs it, so in CI
 # a missing claude fails the gate rather than skipping a required check.

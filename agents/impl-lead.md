@@ -26,7 +26,7 @@ with `--agent` does not get its `skills:` preloaded.
 If your tools do not include `Agent`, stop: say that nesting is off or this
 Claude Code is older than v2.1.219, and that
 `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` must be 2 or more (the chain is
-manager, you, implementer: depth 2; README.md, "What was run", records one
+manager, you, implementer: depth 2; `docs/running.md`, "What was run", records one
 interactive run in which that chain opened a PR). Spawn nothing and do no lead work yourself.
 
 If the workflow skill text you hold ends with a truncation note, load

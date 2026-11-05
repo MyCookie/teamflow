@@ -57,7 +57,7 @@ runs unenforced, with `tf` checking the gate and the verdict itself.
    only once `.github/workflows/gate.yml` is on the default branch; until
    then it prints `later: ...`. After the setup branch merges, update the
    main worktree and run `tf setup --forge github --apply` there once more.
-4. Start the manager (README, "Run").
+4. Start the manager (`docs/running.md`, "Run").
 
 ## 4. Check that it works
 
@@ -66,7 +66,7 @@ Each check is cheap and catches a different failure:
 1. `/agents` lists the teamflow agents.
 2. The manager starts without the depth stop. If it stops and says nesting
    is off, `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` is `1`; set it to 2 or
-   more (README, "Run"). Two is enough: every handoff runs through the manager.
+   more (`docs/running.md`, "Requirements"). Two is enough: every handoff runs through the manager.
 3. `tf mode` prints the intended mode, and `teamflow-config` the intended
    loop bounds.
 4. Asked to edit a source file, the manager refuses.

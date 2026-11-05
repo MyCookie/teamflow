@@ -11,12 +11,13 @@ for it.
 
 ## Install
 
+This branch swaps Opus for Sonnet, and Sonnet for Haiku to demo the plugin with capped funds.
+
 ```
-/plugin marketplace add Ribhu-Labs/teamflow
-/plugin install teamflow@teamflow
+claude --plugin-dir /path/to/plugin-dir/teamflow-demo-cheaper-models --agent teamflow:manager
 ```
 
-Launch `claude` and ask it to setup the teamflow plugin.
+Ask the Manager to setup the teamflow plugin.
 
 ## How it works
 

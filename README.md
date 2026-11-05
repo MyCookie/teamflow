@@ -162,6 +162,32 @@ has no wait, read in `bin/tf`), bounded by
 remote isn't GitHub, every `tf` command stops with exit 2 rather than
 falling back to local.
 
+If your token for the repository is kept in a variable not named `GH_TOKEN`,
+override `GH_TOKEN` for one command (never write the token itself in the
+command; it would land in your shell history):
+
+```bash
+GH_TOKEN="$OTHER_VAR" tf issue view 12      # or: env GH_TOKEN="$OTHER_VAR" tf issue view 12
+```
+
+This works because `tf` does not read a token (`bin/tf` contains no
+`GH_TOKEN` or `GITHUB_TOKEN`, read); it runs `gh`, which reads `GH_TOKEN` from
+its environment (read). Run: `tf issue view` and `tf pr view` (the `env` form),
+`tf issue view` (the shell-prefix form), `tf issue create` and
+`tf issue comment` (shell-prefix form), all returning correct data, and a bad
+value in either form makes `tf` exit 2 with "gh is not authenticated", so the
+overridden value is the one used. Not verified: the other write commands
+(`tf issue edit`, `tf issue close`, `tf pr create`, `tf pr claim`,
+`tf pr review`, `tf pr merge`, `tf pr release`); they go through the same
+`gh` calls, a reading of `bin/tf`, not a run. The push inside `tf pr create` is
+a `git push` to the configured remote (read, not run), so it authenticates
+with git's credential for that remote (an SSH key for an SSH remote), not with
+`GH_TOKEN`; for an HTTPS remote it depends on your git credential helper, not
+verified. The override applies to that one command. Whether starting the
+session as `GH_TOKEN="$OTHER_VAR" claude --agent teamflow:manager` makes every
+agent's `tf` use that token is not verified: a profile that sets `GH_TOKEN`
+could override it in each command's shell.
+
 ## Run
 
 One session, started from the repository root:

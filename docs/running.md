@@ -27,7 +27,7 @@ flowchart TD
     Manager -->|"goal or task with no Issue"| Research["research-lead and researchers: file Issues and a tracking Issue"]
     Manager -.->|"Issue numbers given: research skipped (optional)"| Plan
     Manager -.->|"Review what we just built (optional)"| Post
-    Manager -.->|"a PR the implementation team did not open: merge-review, outside the loop"| Round
+    Manager -.->|"a PR the implementation team did not open (optional)"| MR
     Research --> Plan
     Plan["impl-lead, plan only: returns the plan table"] --> Approve{"plan approval"}
     Approve -->|"human approves"| Exec
@@ -38,12 +38,15 @@ flowchart TD
         Round["fresh review-lead per round: claim, gate, five specialist reviewers, one verdict"] --> Verdict{"verdict"}
         Verdict -->|"REQUEST_CHANGES"| Rework["impl-lead's implementer reworks"]
         Rework --> Round
-        Verdict -.->|"merge-review REQUEST_CHANGES: manager relays it, the author reworks"| Author["PR author reworks and pushes"]
-        Author --> Round
         Verdict -->|"APPROVE"| Merge["review-lead arms or runs the merge"]
     end
 
     Verdict -.->|"fifth round without a merge, or a dispute"| Human["escalate to the human"]
+
+    MR["merge-review, outside the PR loop: review-lead, per-PR mode, claim, gate, five specialist reviewers, one verdict"] --> MRV{"verdict"}
+    MRV -->|"APPROVE: review-lead arms or runs the merge; no release step, no loop check"| Done
+    MRV -.->|"REQUEST_CHANGES: manager relays it to the human"| Author["the author reworks and pushes"]
+    Author --> MR
     Merge --> Rel{"shipped path changed?"}
     Rel -->|"yes"| Release["release unit bumps the version after the other units merge; manager asks the human to run the plugin update"]
     Rel -->|"no"| Next

@@ -3,7 +3,7 @@
 ## Install
 
 ```
-/plugin marketplace add MyCookie/teamflow
+/plugin marketplace add Ribhu-Labs/teamflow
 /plugin install teamflow@teamflow
 ```
 

@@ -6,7 +6,7 @@ description: >
   for a post-merge review, to audit for over-engineering, unnecessary
   abstractions, bloated dependencies, and existing ponytail debt markers.
   Never invoked directly by the human — invoke review-lead instead.
-model: claude-sonnet-5-5
+model: claude-haiku-5-5
 effort: high
 tools: Read, Grep, Glob, Bash, SendMessage
 disallowedTools: Edit, Write, MultiEdit

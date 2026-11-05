@@ -5,7 +5,7 @@ description: >
   (per-PR mode) and, when the human asks for a post-merge review, to audit
   the codebase from the security perspective and file findings as Issues.
   Never invoked directly by the human — invoke review-lead instead.
-model: claude-sonnet-5-5
+model: claude-haiku-5-5
 effort: high
 tools: Read, Grep, Glob, Bash, SendMessage
 disallowedTools: Edit, Write, MultiEdit

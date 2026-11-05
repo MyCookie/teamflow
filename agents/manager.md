@@ -6,7 +6,7 @@ description: >
   review rounds between impl-lead and review-lead, and governs the optional
   review-implement loop. Spawns the three leads as subagents. Modifies no
   file but its state file. Invoke to run any pipeline task from end to end.
-model: claude-opus-5-5
+model: claude-sonnet-5-5
 effort: high
 tools: Bash, Skill, SendMessage, Read, Write, Agent(teamflow:research-lead, teamflow:impl-lead, teamflow:review-lead, teamflow:researcher, teamflow:implementer, teamflow:architect-reviewer, teamflow:security-reviewer, teamflow:quality-reviewer, teamflow:docs-reviewer, teamflow:simplicity-reviewer)
 disallowedTools: Edit, MultiEdit

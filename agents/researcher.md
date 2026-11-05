@@ -5,7 +5,7 @@ description: >
   focus question. Gathers information, synthesises findings, and reports
   back to research-lead. Does not file Issues or modify files. Never invoke
   directly — invoke research-lead with your goal instead.
-model: claude-sonnet-5-5
+model: claude-haiku-5-5
 effort: high
 tools: Read, Grep, Glob, Bash, WebFetch, WebSearch, SendMessage
 disallowedTools: Edit, Write, MultiEdit, mcp__github

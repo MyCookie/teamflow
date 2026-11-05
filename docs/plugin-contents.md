@@ -13,3 +13,15 @@
 
 `bin/` is on the shell `PATH` while the plugin is enabled, for leads and
 subagents alike.
+
+## Models on this branch (demo only)
+
+`demo/cheaper-models` is a one-off demo branch with lower-cost models. It is
+not merged into `main`. Each agent runs one tier below its model on `main`:
+
+| Agents | `main` | This branch |
+|---|---|---|
+| manager, research-lead, impl-lead, review-lead | `claude-opus-5-5` | `claude-sonnet-5-5` |
+| researcher, implementer, the five specialist reviewers | `claude-sonnet-5-5` | `claude-haiku-5-5` |
+
+The `model:` line in each `agents/*.md` file sets the agent's model.

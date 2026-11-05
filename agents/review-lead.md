@@ -8,7 +8,7 @@ description: >
   optional post-merge modes diff-review and full-audit, which run only when
   the human asks for a review. Reports back to the manager in its final
   report.
-model: claude-opus-5-5
+model: claude-sonnet-5-5
 effort: high
 tools: Read, Bash, Skill, SendMessage, Agent(teamflow:architect-reviewer, teamflow:security-reviewer, teamflow:quality-reviewer, teamflow:docs-reviewer, teamflow:simplicity-reviewer)
 isolation: worktree

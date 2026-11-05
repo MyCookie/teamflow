@@ -6,7 +6,7 @@ description: >
   synthesises their findings into well-defined Issues, and reports
   back to the manager in its final report. Invoke to decompose a vague or complex goal into
   actionable tasks before implementation begins.
-model: claude-opus-5-5
+model: claude-sonnet-5-5
 effort: high
 tools: Read, Grep, Glob, Bash, Skill, SendMessage, Agent(teamflow:researcher)
 disallowedTools: Edit, Write, MultiEdit

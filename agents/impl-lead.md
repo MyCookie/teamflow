@@ -8,7 +8,7 @@ description: >
   Returns each opened PR to the manager as ready for review (the review team
   reviews and merges it, in rounds run by the manager), reworks it when asked,
   and reports the PRs, verdicts and release to the manager in its final report.
-model: claude-opus-5-5
+model: claude-sonnet-5-5
 effort: high
 tools: Bash, Skill, SendMessage, Agent(teamflow:implementer)
 skills: teamflow:workflow

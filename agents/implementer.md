@@ -5,7 +5,7 @@ description: >
   Issues within an assigned git worktree. Owns a defined set of
   files exclusively. Opens a PR when done. Never invoked directly by the
   human — invoke impl-lead instead.
-model: claude-sonnet-5-5
+model: claude-haiku-5-5
 effort: high
 tools: Read, Grep, Glob, Edit, Write, MultiEdit, Bash, SendMessage
 disallowedTools: Agent

@@ -9,6 +9,15 @@ verdict, and is the only actor that arms or runs a merge. A post-merge
 review that files follow-up Issues is optional and runs only when you ask
 for it.
 
+## Install
+
+```
+/plugin marketplace add Ribhu-Labs/teamflow
+/plugin install teamflow@teamflow
+```
+
+Launch `claude` and ask it to setup the teamflow plugin.
+
 ## How it works
 
 ```mermaid
@@ -46,15 +55,6 @@ The diagram is drawn from `skills/workflow/SKILL.md` and `agents/manager.md`;
 where the two differ, the workflow rules win. How to run it is in
 [docs/running.md](docs/running.md), which also records that per-PR review and
 the optional loop were read in the rules, not run live.
-
-## Install
-
-```
-/plugin marketplace add Ribhu-Labs/teamflow
-/plugin install teamflow@teamflow
-```
-
-Launch `claude` and ask it to setup the teamflow plugin.
 
 ## License
 

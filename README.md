@@ -9,6 +9,15 @@ verdict, and is the only actor that arms or runs a merge. A post-merge
 review that files follow-up Issues is optional and runs only when you ask
 for it.
 
+## Install
+
+```
+/plugin marketplace add Ribhu-Labs/teamflow
+/plugin install teamflow@teamflow
+```
+
+Launch `claude` and ask it to setup the teamflow plugin.
+
 ## License
 
 Copyright 2026 Ashish Kansara. Licensed under the Apache License, Version 2.0; see [LICENSE](LICENSE).

@@ -21,6 +21,44 @@ and unreviewed. Per-PR review and the optional loop are read in
 The workflow rules live in the `teamflow:workflow` skill. Subagents preload
 it; the manager and the leads load it as their first step.
 
+```mermaid
+flowchart TD
+    Goal["Goal, or Issue numbers, from the human"] --> Manager["manager: routes every handoff"]
+    Manager -->|"goal or task with no Issue"| Research["research-lead and researchers: file Issues and a tracking Issue"]
+    Manager -.->|"Issue numbers given: research skipped (optional)"| Plan
+    Manager -.->|"Review what we just built (optional)"| Post
+    Manager -.->|"a PR the implementation team did not open: merge-review, outside the loop"| Round
+    Research --> Plan
+    Plan["impl-lead, plan only: returns the plan table"] --> Approve{"plan approval"}
+    Approve -->|"human approves"| Exec
+    Approve -->|"all-low batch, teamflow_auto_approve low: manager auto-approves"| Exec
+    Exec["fresh impl-lead executes the plan: implementers, one worktree each, open PRs"] --> Round
+
+    subgraph prloop ["PR loop, one per PR"]
+        Round["fresh review-lead per round: claim, gate, five specialist reviewers, one verdict"] --> Verdict{"verdict"}
+        Verdict -->|"REQUEST_CHANGES"| Rework["impl-lead's implementer reworks"]
+        Rework --> Round
+        Verdict -.->|"merge-review REQUEST_CHANGES: manager relays it, the author reworks"| Author["PR author reworks and pushes"]
+        Author --> Round
+        Verdict -->|"APPROVE"| Merge["review-lead arms or runs the merge"]
+    end
+
+    Verdict -.->|"fifth round without a merge, or a dispute"| Human["escalate to the human"]
+    Merge --> Rel{"shipped path changed?"}
+    Rel -->|"yes"| Release["release unit bumps the version after the other units merge; manager asks the human to run the plugin update"]
+    Rel -->|"no"| Next
+    Release --> Next{"post-merge review asked for?"}
+    Next -.->|"yes (optional)"| Post
+    Next -->|"no"| Done["Done: manager reports to the human"]
+    Post["review-lead, diff-review mode: files new Issues"] --> Loop{"manager's loop check"}
+    Loop -->|"continue: next iteration plans exactly the new Issues"| Plan
+    Loop -->|"no new Issues, or the loop stops"| Done
+```
+
+The diagram is drawn from `skills/workflow/SKILL.md` and `agents/manager.md`;
+where the two differ, the workflow rules win. Per-PR review and the optional
+loop are read in those rules, not run live (see **What was run**, below).
+
 **What was run.** On 2026-11-03, Claude Code 2.1.308, `claude -p` from a
 checkout of this branch (details under Headless). Observed: the plugin loads
 from the checkout; with `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1` the manager
